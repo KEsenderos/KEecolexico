@@ -13,14 +13,14 @@
     var K = C.KX;
     var font = read_(K.STORAGE_KEY_FONT);
     var dl = parseInt(read_(K.STORAGE_KEY_DEADLINE), 10);
-    var rp = read_(K.STORAGE_KEY_REPEAT);
     RE.State.screen = 'screen-library';
     RE.State.prevScreen = 'screen-library';
     RE.State.article = null;
     RE.State.view = null;
     RE.State.blockId = '';
-    RE.State.repeatMode = (rp === K.REPEAT.SECTION || rp === K.REPEAT.CHUNK) ? rp : K.REPEAT_DEFAULT;
-    RE.State.chunkStart = 0;
+    RE.State.rangeStart = 0;            // 繰り返す範囲の開始（音声全体の時刻）
+    RE.State.rangeEnd = 0;              // 繰り返す範囲の終了
+    RE.State.rangeEditOpen = false;     // 時刻の▲▼の開閉
     RE.State.moveSec = RE.Utils.loadMoveSec();
     RE.State.gapSec = RE.Utils.loadGapSec();
     RE.State.rate = C.RATE_DEFAULT;

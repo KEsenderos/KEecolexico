@@ -102,13 +102,25 @@
     return { start: pt.s, end: pt.e };
   }
 
-  // いま再生する範囲 {s, e}（節全体／◯秒区切り）
+  // いま繰り返す範囲 {s, e}（仕様 6.5.1）。区間が再生できなければ null
   function currentRange() {
     var st = ST(), sec = sectionRange_(st.blockId, st.partIndex);
     if (!sec) return null;
-    if (st.repeatMode !== K.REPEAT.CHUNK) return { s: sec.start, e: sec.end };
-    var s = Math.min(Math.max(st.chunkStart, sec.start), sec.end - 1);
-    return { s: s, e: Math.max(s + 1, Math.min(s + st.moveSec, sec.end)) };
+    var s = Math.min(Math.max(st.rangeStart, sec.start), sec.end - 1);
+    var e = Math.min(Math.max(st.rangeEnd, s + 1), sec.end);
+    return { s: s, e: e };
+  }
+
+  // 今の区間 {start, end}
+  function partRange_() { return sectionRange_(ST().blockId, ST().partIndex); }
+
+  // 範囲を変えてエンジンに渡す。restart が true なら、再生中は頭から再生し直す。play が true なら停止中でも頭から再生する
+  function setRange_(s, e, restart, play) {
+    var st = ST();
+    st.rangeStart = s; st.rangeEnd = e;
+    applyRange_(restart);
+    if (play && RE.Engine.getState() !== S.PLAYING) RE.Engine.playFromStart();
+    RE.UI.renderStudyTop();
   }
 
   // 範囲が長いのに倍速なら1.0に戻す
@@ -275,7 +287,7 @@
       },
       onNext: function () {
         if (!remoteAllowed_() || ST().screen !== 'screen-study') return;
-        if (ST().repeatMode === K.REPEAT.CHUNK) handlers.onNextChunk(); else handlers.onSectionNext();
+        handlers.onNextChunk();
       }
     });
     RE.UI.applyFontSize();
@@ -359,7 +371,8 @@
     st.blockId = blockId;
     st.partIndex = typeof part === 'number' ? part : -1;
     var sec = sectionRange_(blockId, st.partIndex);
-    st.chunkStart = sec ? sec.start : 0;
+    st.rangeStart = sec ? sec.start : 0;
+    st.rangeEnd = sec ? Math.min(sec.start + C.END_DEFAULT_SEC, sec.end) : 0;
     if (blockId !== K.SECTION_NONE && (a.lastBlockId !== blockId || a.lastPart !== st.partIndex)) {
       a.lastBlockId = blockId; a.lastPart = st.partIndex; saveArticle_();
     }
@@ -824,14 +837,39 @@
       var nav = navList(), i = navIndex();
       if (i < nav.length - 1) handlers.onSectionGo(nav[i + 1].blockId, nav[i + 1].part);
     },
-    onRepeatMode: function (mode) {
-      var st = ST();
-      st.repeatMode = mode;
-      try { localStorage.setItem(K.STORAGE_KEY_REPEAT, mode); } catch (e) { /* 無視 */ }
-      var sec = sectionRange_(st.blockId, st.partIndex);
-      st.chunkStart = sec ? sec.start : 0;
-      if (sec) applyRange_(true);
-      RE.UI.renderStudyTop();
+    onToggleRangeEdit: function () { ST().rangeEditOpen = !ST().rangeEditOpen; RE.UI.renderStudyTop(); },
+    onStartStep: function (delta) {
+      var st = ST(), sec = partRange_(), r = currentRange(); if (!sec || !r) return;
+      var n = RE.Utils.clamp(r.s + delta, sec.start, Math.max(Math.ceil(r.e) - 1, sec.start));
+      if (n === r.s) return;
+      RE.UI.clearMessage('study');
+      setRange_(n, r.e, true, false);
+    },
+    onEndStep: function (delta) {
+      var st = ST(), sec = partRange_(), r = currentRange(); if (!sec || !r) return;
+      var n = RE.Utils.clamp(Math.floor(r.e) + delta, r.s + 1, sec.end);
+      if (n === r.e) return;
+      RE.UI.clearMessage('study');
+      setRange_(r.s, n, false, false);
+    },
+    onMarkRange: function (which) {
+      var sec = partRange_(), r = currentRange(); if (!sec || !r) return;
+      var stt = RE.Engine.getState();
+      if (stt !== S.PLAYING && stt !== S.PAUSED) { RE.UI.showMessage('study', C.MSG.MARK_NEED_PLAY); return; }
+      var pos = RE.Engine.getPositionSec();
+      RE.UI.clearMessage('study');
+      if (which === 'start') {
+        var n = RE.Utils.clamp(Math.floor(pos), sec.start, Math.max(Math.ceil(r.e) - 1, sec.start));
+        if (n !== r.s) setRange_(n, r.e, true, false);
+      } else {
+        var m = RE.Utils.clamp(Math.ceil(pos), r.s + 1, sec.end);
+        if (m !== r.e) setRange_(r.s, m, false, false);
+      }
+    },
+    onSelectAll: function () {
+      var sec = partRange_(); if (!sec) return;
+      RE.UI.clearMessage('study');
+      setRange_(sec.start, sec.end, true, false);
     },
     onPlayPause: function () {
       if (!currentRange()) { RE.UI.showMessage('study', M.NO_AUDIO_SECTION); return; }
@@ -840,22 +878,18 @@
     },
     onStop: function () { RE.Engine.stop(); },
     onNextChunk: function () {
-      var st = ST(), sec = sectionRange_(st.blockId, st.partIndex);
-      if (!sec || st.repeatMode !== K.REPEAT.CHUNK) return;
-      var n = st.chunkStart + RE.Utils.calcStepSec(st.moveSec);
-      st.chunkStart = n >= sec.end ? sec.start : n;
+      var sec = partRange_(), r = currentRange(); if (!sec || !r) return;
+      var step = RE.Utils.calcStepSec(ST().moveSec);
+      if (r.e >= sec.end || r.s + step >= sec.end) { RE.UI.showMessage('study', M.REACHED_PART_END); return; }
       RE.UI.clearMessage('study');
-      applyRange_(true);
-      RE.UI.renderStudyTop();
+      setRange_(r.s + step, Math.min(r.e + step, sec.end), true, true);
     },
     onPrevChunk: function () {
-      var st = ST(), sec = sectionRange_(st.blockId, st.partIndex);
-      if (!sec || st.repeatMode !== K.REPEAT.CHUNK) return;
-      if (st.chunkStart <= sec.start) { RE.UI.showMessage('study', M.FIRST_CHUNK); return; }
-      st.chunkStart = Math.max(st.chunkStart - RE.Utils.calcStepSec(st.moveSec), sec.start);
+      var sec = partRange_(), r = currentRange(); if (!sec || !r) return;
+      var d = Math.min(RE.Utils.calcStepSec(ST().moveSec), r.s - sec.start);
+      if (d <= 0) { RE.UI.showMessage('study', C.MSG.REACHED_START); return; }
       RE.UI.clearMessage('study');
-      applyRange_(true);
-      RE.UI.renderStudyTop();
+      setRange_(r.s - d, r.e - d, true, true);
     },
     onComplete: function () {
       var st = ST(), a = st.article, s = sectionEntry(st.blockId);
@@ -932,7 +966,6 @@
     var st = ST();
     st.moveSec = n;
     RE.Utils.saveMoveSec(n);
-    if (st.repeatMode === K.REPEAT.CHUNK && sectionRange_(st.blockId, st.partIndex)) applyRange_(false);
     RE.UI.renderStudyTop();
   }
 

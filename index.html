@@ -117,20 +117,75 @@
         <button id="btn-sec-label" class="btn btn-sec-label" type="button"></button>
         <button id="btn-sec-next" class="btn btn-nav" type="button">次▶</button>
       </div>
-      <div class="seg">
-        <button id="btn-mode-section" class="seg-btn" type="button">節全体</button>
-        <button id="btn-mode-chunk" class="seg-btn" type="button">◯秒区切り</button>
+      <div class="range-row">
+        <button id="btn-mark-start" class="mark-btn mark-start" type="button"><span>ここを</span><span>開始</span></button>
+        <button id="btn-range-edit" class="range-edit" type="button" aria-label="開始・終了の時刻を変える">--:--〜--:--</button>
+        <button id="btn-mark-end-range" class="mark-btn mark-end" type="button"><span>ここを</span><span>終了</span></button>
       </div>
-      <div class="range">
-        <span id="txt-range-start" class="range-time">--:--</span>
-        <div id="bar-range" class="bar"><div id="bar-range-fill" class="bar-fill"></div></div>
-        <span id="txt-range-end" class="range-time">--:--</span>
+      <div id="bar-range" class="bar"><div id="bar-range-fill" class="bar-fill"></div></div>
+      <div id="panel-range" class="range-panel" hidden>
+        <div class="dg-row" id="row-start">
+          <span class="dg-label">開始</span>
+          <div class="dg-col">
+            <button id="btn-start-m10-up" class="digit-btn" type="button" data-target="start" data-unit="600" data-dir="1" aria-label="開始 +600秒">▲</button>
+            <span id="txt-start-m10" class="dg-num">0</span>
+            <button id="btn-start-m10-down" class="digit-btn" type="button" data-target="start" data-unit="600" data-dir="-1" aria-label="開始 −600秒">▼</button>
+          </div>
+          <div class="dg-col">
+            <button id="btn-start-m1-up" class="digit-btn" type="button" data-target="start" data-unit="60" data-dir="1" aria-label="開始 +60秒">▲</button>
+            <span id="txt-start-m1" class="dg-num">0</span>
+            <button id="btn-start-m1-down" class="digit-btn" type="button" data-target="start" data-unit="60" data-dir="-1" aria-label="開始 −60秒">▼</button>
+          </div>
+          <span class="dg-colon">:</span>
+          <div class="dg-col">
+            <button id="btn-start-s10-up" class="digit-btn" type="button" data-target="start" data-unit="10" data-dir="1" aria-label="開始 +10秒">▲</button>
+            <span id="txt-start-s10" class="dg-num">0</span>
+            <button id="btn-start-s10-down" class="digit-btn" type="button" data-target="start" data-unit="10" data-dir="-1" aria-label="開始 −10秒">▼</button>
+          </div>
+          <div class="dg-col">
+            <button id="btn-start-s1-up" class="digit-btn" type="button" data-target="start" data-unit="1" data-dir="1" aria-label="開始 +1秒">▲</button>
+            <span id="txt-start-s1" class="dg-num">0</span>
+            <button id="btn-start-s1-down" class="digit-btn" type="button" data-target="start" data-unit="1" data-dir="-1" aria-label="開始 −1秒">▼</button>
+          </div>
+        </div>
+        <div class="dg-row" id="row-end">
+          <span class="dg-label">終了</span>
+          <div class="dg-col">
+            <button id="btn-end-m10-up" class="digit-btn" type="button" data-target="end" data-unit="600" data-dir="1" aria-label="終了 +600秒">▲</button>
+            <span id="txt-end-m10" class="dg-num">0</span>
+            <button id="btn-end-m10-down" class="digit-btn" type="button" data-target="end" data-unit="600" data-dir="-1" aria-label="終了 −600秒">▼</button>
+          </div>
+          <div class="dg-col">
+            <button id="btn-end-m1-up" class="digit-btn" type="button" data-target="end" data-unit="60" data-dir="1" aria-label="終了 +60秒">▲</button>
+            <span id="txt-end-m1" class="dg-num">0</span>
+            <button id="btn-end-m1-down" class="digit-btn" type="button" data-target="end" data-unit="60" data-dir="-1" aria-label="終了 −60秒">▼</button>
+          </div>
+          <span class="dg-colon">:</span>
+          <div class="dg-col">
+            <button id="btn-end-s10-up" class="digit-btn" type="button" data-target="end" data-unit="10" data-dir="1" aria-label="終了 +10秒">▲</button>
+            <span id="txt-end-s10" class="dg-num">0</span>
+            <button id="btn-end-s10-down" class="digit-btn" type="button" data-target="end" data-unit="10" data-dir="-1" aria-label="終了 −10秒">▼</button>
+          </div>
+          <div class="dg-col">
+            <button id="btn-end-s1-up" class="digit-btn" type="button" data-target="end" data-unit="1" data-dir="1" aria-label="終了 +1秒">▲</button>
+            <span id="txt-end-s1" class="dg-num">0</span>
+            <button id="btn-end-s1-down" class="digit-btn" type="button" data-target="end" data-unit="1" data-dir="-1" aria-label="終了 −1秒">▼</button>
+          </div>
+        </div>
       </div>
       <div class="controls">
         <button id="btn-stop" class="btn btn-ctl" type="button" aria-label="停止">■</button>
         <button id="btn-play" class="btn btn-play" type="button" aria-label="再生">▶</button>
+        <button id="btn-all" class="btn btn-ctl" type="button" aria-label="全範囲">⇤⇥<small>全範囲</small></button>
         <button id="btn-prev-chunk" class="btn btn-ctl" type="button">◀◀<small>戻る</small></button>
-        <button id="btn-next-chunk" class="btn btn-ctl btn-next" type="button">区間移動<small>▶▶</small></button>
+        <button id="btn-next-chunk" class="btn btn-ctl btn-next" type="button">区間移動<small id="txt-next-step">＋4秒</small></button>
+      </div>
+      <div class="rate-row">
+        <button id="btn-rate-12" class="opt-btn rate-btn" type="button" data-rate="1.2">1.2</button>
+        <button id="btn-rate-11" class="opt-btn rate-btn" type="button" data-rate="1.1">1.1</button>
+        <button id="btn-rate-10" class="opt-btn rate-btn" type="button" data-rate="1.0">1.0</button>
+        <button id="btn-rate-09" class="opt-btn rate-btn" type="button" data-rate="0.9">0.9</button>
+        <button id="btn-rate-08" class="opt-btn rate-btn" type="button" data-rate="0.8">0.8</button>
       </div>
       <button id="btn-complete" class="btn btn-complete" type="button">この節を完了</button>
       <div id="panel-tools" class="tools" hidden>
@@ -148,14 +203,6 @@
           <button id="btn-gap-2" class="opt-btn gap-btn" type="button" data-gap="2">2</button>
           <button id="btn-gap-3" class="opt-btn gap-btn" type="button" data-gap="3">3</button>
           <button id="btn-gap-5" class="opt-btn gap-btn" type="button" data-gap="5">5</button>
-        </div>
-        <div class="tool-row">
-          <span class="tool-label">倍速</span>
-          <button id="btn-rate-12" class="opt-btn rate-btn" type="button" data-rate="1.2">1.2</button>
-          <button id="btn-rate-11" class="opt-btn rate-btn" type="button" data-rate="1.1">1.1</button>
-          <button id="btn-rate-10" class="opt-btn rate-btn" type="button" data-rate="1.0">1.0</button>
-          <button id="btn-rate-09" class="opt-btn rate-btn" type="button" data-rate="0.9">0.9</button>
-          <button id="btn-rate-08" class="opt-btn rate-btn" type="button" data-rate="0.8">0.8</button>
         </div>
       </div>
       <div id="msg-study" class="msg msg-tight" role="status"></div>

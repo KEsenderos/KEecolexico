@@ -1,5 +1,5 @@
 // sw.js — アプリ本体をiPhoneに保存して、通信なしでも開けるようにする
-var CACHE_VERSION = '0.5';                 // APP_VERSION と同じ値にする
+var CACHE_VERSION = '0.6';                 // APP_VERSION と同じ値にする
 var CACHE_PREFIX = 'kx-cache-';
 var CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 var APP_SHELL_FILES = ['./', './index.html', './manifest.webmanifest', './css/style.css',

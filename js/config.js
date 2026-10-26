@@ -5,7 +5,7 @@
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '0.5',
+    APP_VERSION: '0.6',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -93,15 +93,12 @@
       STORE_AUDIOS: 'audios',
       STORAGE_KEY_FONT: 'kx.fontSize',          // "L" | "M" | "S"
       STORAGE_KEY_DEADLINE: 'kx.deadlineWeekday', // 5=金 / 6=土
-      STORAGE_KEY_REPEAT: 'kx.repeatMode',      // "section" | "chunk"
       FONT_DEFAULT: 'M',
       FONT_SIZES: { L: 20, M: 17, S: 14 },      // 意味の文字(px)。スペイン語は +2px
       DEADLINE_OPTIONS: [5, 6],
       DEADLINE_DEFAULT: 6,
       WEEKDAY_LABELS: ['日', '月', '火', '水', '木', '金', '土'],
       DAY_START_HOUR: 4,                        // 1日の区切り（午前4時）
-      REPEAT: { SECTION: 'section', CHUNK: 'chunk' },
-      REPEAT_DEFAULT: 'section',
       MARK_LEAD_SEC: 1,                         // 記録のボタン（ここから・節中断・中断終了・節END・次節START）を押した位置から戻す秒数
       PART_LETTERS: 'ABCDEFGHIJ',               // 区間の呼び名。1つの節の区間は最大この文字数（10）
       MARK_UNDO_MAX: 50,                        // 「1つ取り消す」で戻せる回数
@@ -141,7 +138,7 @@
       ALL_DONE: 'この記事はすべて完了しました',
       DELETE_CONFIRM: 'もう一度押すと削除します',
       DELETED: '削除しました',
-      FIRST_CHUNK: '節の最初の区間です',
+      REACHED_PART_END: 'この区間の終わりです',
       DRIVE_NEED_SETTINGS: '設定画面で、GASのURLと合言葉を入れてください',
       DRIVE_LOADING_LIST: 'ドライブの一覧を読み込み中…',
       DRIVE_EMPTY: 'KEecolexicoフォルダに記事のフォルダがありません',

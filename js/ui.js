@@ -106,8 +106,16 @@
       renderSectionSheet(false);
       h.onSectionGo(b.getAttribute('data-id'), Number(b.getAttribute('data-part')));
     });
-    on('btn-mode-section', function () { h.onRepeatMode(K.REPEAT.SECTION); });
-    on('btn-mode-chunk', function () { h.onRepeatMode(K.REPEAT.CHUNK); });
+    on('btn-range-edit', function () { h.onToggleRangeEdit(); });
+    on('btn-mark-start', function () { h.onMarkRange('start'); });
+    on('btn-mark-end-range', function () { h.onMarkRange('end'); });
+    on('btn-all', function () { commitInput_(); h.onSelectAll(); });
+    document.querySelectorAll('.digit-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var d = Number(b.getAttribute('data-unit')) * Number(b.getAttribute('data-dir'));
+        if (b.getAttribute('data-target') === 'start') h.onStartStep(d); else h.onEndStep(d);
+      });
+    });
     on('btn-stop', function () { commitInput_(); h.onStop(); });
     on('btn-play', function () { commitInput_(); h.onPlayPause(); });
     on('btn-prev-chunk', function () { commitInput_(); h.onPrevChunk(); });
@@ -332,19 +340,13 @@
     el['btn-sec-label'].textContent = label;
     el['btn-sec-prev'].disabled = idx <= 0;
     el['btn-sec-next'].disabled = idx >= nav.length - 1;
-    var chunk = st.repeatMode === K.REPEAT.CHUNK;
-    el['btn-mode-section'].setAttribute('aria-pressed', String(!chunk));
-    el['btn-mode-chunk'].setAttribute('aria-pressed', String(chunk));
-    el['btn-mode-chunk'].textContent = st.moveSec + '秒区切り';
     var r = RE.Main.currentRange();
-    el['txt-range-start'].textContent = r ? RE.Utils.formatTime(r.s) : '--:--';
-    el['txt-range-end'].textContent = r ? RE.Utils.formatTime(r.e) : '--:--';
-    if (!r) el['bar-range-fill'].style.width = '0%';
     var playable = !!r;
-    el['btn-play'].disabled = !playable;
-    el['btn-stop'].disabled = !playable;
-    el['btn-prev-chunk'].disabled = !playable || !chunk;
-    el['btn-next-chunk'].disabled = !playable || !chunk;
+    renderRange_(r);
+    ['btn-play', 'btn-stop', 'btn-all', 'btn-prev-chunk', 'btn-next-chunk', 'btn-mark-start', 'btn-mark-end-range', 'btn-range-edit'].forEach(function (id) {
+      el[id].disabled = !playable;
+    });
+    el['txt-next-step'].textContent = '＋' + RE.Utils.calcStepSec(st.moveSec) + '秒';
     var isNone = !cur || cur.blockId === K.SECTION_NONE;
     var secE = cur ? RE.Main.sectionEntry(cur.blockId) : null;
     el['btn-complete'].disabled = isNone || !secE || !secE.parts.length;
@@ -365,6 +367,19 @@
       b.disabled = !playable;
     });
     if (st.sheetOpen) renderSectionSheet(true);
+  }
+
+  // 範囲の行・時刻の▲▼の表示（仕様 6.5・8.5）
+  function renderRange_(r) {
+    var st = RE.State, f = RE.Utils.formatTime;
+    el['btn-range-edit'].textContent = r ? f(r.s) + '〜' + f(r.e) : '--:--〜--:--';
+    el['btn-range-edit'].classList.toggle('is-on', !!st.rangeEditOpen);
+    el['panel-range'].hidden = !st.rangeEditOpen || !r;
+    if (!r) { el['bar-range-fill'].style.width = '0%'; return; }
+    [['start', r.s], ['end', r.e]].forEach(function (x) {
+      var d = RE.Utils.splitDigits(x[1]);
+      ['m10', 'm1', 's10', 's1'].forEach(function (k) { el['txt-' + x[0] + '-' + k].textContent = String(d[k]); });
+    });
   }
 
   // 1語の表示
