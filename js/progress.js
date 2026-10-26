@@ -19,7 +19,7 @@
   // sections から { remaining, days, doneToday, target, allDone }
   function calc(sections, weekday) {
     var key = todayKey();
-    var targets = sections.filter(function (s) { return s.startSec !== null; });
+    var targets = sections.filter(function (s) { return s.parts && s.parts.length > 0; });
     var remaining = targets.filter(function (s) { return !s.done; }).length;
     var doneToday = targets.filter(function (s) { return s.done === key; }).length;
     var days = daysUntilDeadline(weekday);

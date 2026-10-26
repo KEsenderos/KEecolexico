@@ -31,8 +31,13 @@
     RE.State.driveList = [];
     RE.State.driveBusy = false;
     RE.State.drivePending = null;       // 音声だけ受け取れなかったときの途中の入力
-    RE.State.markIndex = 0;
-    RE.State.markTimes = [];            // 記録画面の各節の開始（undefined=未記録、null=とばした、数=秒）
+    RE.State.partIndex = 0;             // 表示中の区間の番号（とばした節・見つからなかった語は -1）
+    RE.State.markIndex = 0;             // 記録画面で次に記録する節の番号
+    RE.State.markParts = [];            // 記録画面の各節の区間（undefined=未記録、[]=とばした、[{s,e}]。e は未定なら null）
+    RE.State.markState = 'idle';        // 記録の状態 'idle' / 'open' / 'paused'
+    RE.State.markHistory = [];          // 「1つ取り消す」用の控え
+    RE.State.markFromSaved = false;     // 「節の位置を直す」から開いたか
+    RE.State.markResetPending = false;  // 「最初から記録し直す」の1回目を押したか
     RE.State.articles = [];             // 記事一覧
     RE.State.loadedArticleId = '';      // エンジンに音声を読み込んである記事
     RE.State.pendingDeleteId = '';      // 削除の1回目を押した記事

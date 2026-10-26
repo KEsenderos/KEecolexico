@@ -80,15 +80,18 @@
     on('btn-mark-back5', function () { h.onMarkSeek(-K.SEEK_SEC); });
     on('btn-mark-fwd5', function () { h.onMarkSeek(K.SEEK_SEC); });
     on('btn-mark-here', function () { h.onMarkHere(); });
+    on('btn-mark-break', function () { h.onMarkBreak(); });
+    on('btn-mark-end', function () { h.onMarkEnd(); });
+    on('btn-mark-reset', function () { h.onMarkReset(); });
     on('btn-mark-skip', function () { h.onMarkSkip(); });
     on('btn-mark-undo', function () { h.onMarkUndo(); });
     on('btn-mark-save', function () { h.onMarkSave(); });
     el['list-marks'].addEventListener('click', function (ev) {
       var b = ev.target.closest('button'); if (!b) return;
-      var i = parseInt(b.getAttribute('data-index'), 10);
-      if (b.classList.contains('mark-minus')) h.onMarkAdjust(i, -K.ADJUST_SEC);
-      else if (b.classList.contains('mark-plus')) h.onMarkAdjust(i, K.ADJUST_SEC);
-      else if (b.classList.contains('mark-preview')) h.onMarkPreview(i);
+      var bi = parseInt(b.getAttribute('data-bi'), 10), pi = parseInt(b.getAttribute('data-pi'), 10);
+      if (b.classList.contains('mark-preview')) { h.onMarkPreview(bi, pi); return; }
+      var which = b.getAttribute('data-which'), dir = Number(b.getAttribute('data-dir'));
+      if (which) h.onMarkAdjust(bi, pi, which, dir * K.ADJUST_SEC);
     });
     // 学習
     on('btn-study-back', function () { h.onStudyBack(); });
@@ -101,7 +104,7 @@
       if (ev.target === el['sheet-sections']) { renderSectionSheet(false); return; }
       var b = ev.target.closest('.sheet-row'); if (!b) return;
       renderSectionSheet(false);
-      h.onSectionGo(b.getAttribute('data-id'));
+      h.onSectionGo(b.getAttribute('data-id'), Number(b.getAttribute('data-part')));
     });
     on('btn-mode-section', function () { h.onRepeatMode(K.REPEAT.SECTION); });
     on('btn-mode-chunk', function () { h.onRepeatMode(K.REPEAT.CHUNK); });
@@ -242,29 +245,66 @@
 
   // ===== 記録 =====
   function renderMark() {
-    var st = RE.State, blocks = st.view ? st.view.blocks : [], n = blocks.length;
+    var st = RE.State, blocks = st.view ? st.view.blocks : [], n = blocks.length, L = K.MARK_LABELS;
+    var nextName = st.markIndex < n ? blocks[st.markIndex].label : '';
     var here = el['btn-mark-here'];
-    if (st.markIndex < n) { here.textContent = 'ここから：' + blocks[st.markIndex].label; here.disabled = false; }
-    else { here.textContent = 'すべて記録しました'; here.disabled = true; }
+    here.textContent = nextName ? fill(L.HERE, { name: nextName }) : L.ALL;
+    here.disabled = !nextName;
+    // 節中断／中断終了
+    var brk = el['btn-mark-break'], cur = st.markParts[st.markIndex - 1];
+    brk.textContent = st.markState === 'paused' ? L.RESUME : L.BREAK;
+    brk.disabled = st.markState === 'idle' || (st.markState === 'open' && cur && cur.length >= K.PART_LETTERS.length);
+    brk.classList.toggle('is-active', st.markState === 'paused');
+    // 節END／次節START
+    var end = el['btn-mark-end'];
+    if (st.markState === 'idle') {
+      end.textContent = nextName ? fill(L.NEXT_START, { name: nextName }) : L.END;
+      end.disabled = !nextName;
+      end.classList.toggle('is-active', !!nextName && st.markIndex > 0);
+    } else {
+      end.textContent = L.END; end.disabled = false; end.classList.remove('is-active');
+    }
     el['btn-mark-skip'].disabled = st.markIndex >= n;
-    el['btn-mark-undo'].disabled = st.markIndex <= 0;
+    el['btn-mark-undo'].disabled = !st.markHistory.length;
+    var reset = el['btn-mark-reset'];
+    reset.hidden = !st.markFromSaved;
+    reset.textContent = st.markResetPending ? '本当に記録し直す' : '最初から記録し直す';
+    reset.classList.toggle('btn-danger', !!st.markResetPending);
     renderMarkPlay_();
+    // 記録した区間の一覧
     var box = el['list-marks']; box.textContent = '';
-    blocks.forEach(function (b, i) {
-      var t = st.markTimes[i];
-      if (t === undefined) return;
-      var row = make_('div', 'mark-row');
-      row.appendChild(make_('span', 'mark-label', b.label));
-      if (t === null) {
-        row.appendChild(make_('span', 'mark-time mark-skipped', '—（とばした）'));
-      } else {
-        row.appendChild(make_('span', 'mark-time', RE.Utils.formatTime(t)));
-        [['mark-minus', '−1'], ['mark-plus', '＋1'], ['mark-preview', '▶']].forEach(function (x) {
-          var bt = make_('button', 'btn btn-mini ' + x[0], x[1]); bt.type = 'button'; bt.setAttribute('data-index', i);
-          row.appendChild(bt);
-        });
+    blocks.forEach(function (b, bi) {
+      var ps = st.markParts[bi];
+      if (ps === undefined) return;
+      if (!ps.length) {
+        var r0 = make_('div', 'mark-row');
+        var top0 = make_('div', 'mark-top');
+        top0.appendChild(make_('span', 'mark-label', b.label));
+        top0.appendChild(make_('span', 'mark-time mark-skipped', '—（とばした）'));
+        r0.appendChild(top0); box.appendChild(r0);
+        return;
       }
-      box.appendChild(row);
+      ps.forEach(function (pt, pi) {
+        var row = make_('div', 'mark-row');
+        var top = make_('div', 'mark-top');
+        var name = ps.length > 1 ? b.label + K.PART_LETTERS.charAt(pi) : b.label;
+        top.appendChild(make_('span', 'mark-label', name));
+        top.appendChild(make_('span', 'mark-time', RE.Utils.formatTime(pt.s) + '〜' + (pt.e === null ? '…' : RE.Utils.formatTime(pt.e))));
+        var pv = make_('button', 'btn btn-mini mark-preview', '▶'); pv.type = 'button';
+        pv.setAttribute('data-bi', bi); pv.setAttribute('data-pi', pi);
+        top.appendChild(pv);
+        row.appendChild(top);
+        var adj = make_('div', 'mark-adjust');
+        [['s', -1, '始−1'], ['s', 1, '始＋1'], ['e', -1, '終−1'], ['e', 1, '終＋1']].forEach(function (x) {
+          var bt = make_('button', 'btn btn-mini mark-adj', x[2]); bt.type = 'button';
+          bt.setAttribute('data-bi', bi); bt.setAttribute('data-pi', pi);
+          bt.setAttribute('data-which', x[0]); bt.setAttribute('data-dir', x[1]);
+          if (x[0] === 'e' && pt.e === null) bt.disabled = true;
+          adj.appendChild(bt);
+        });
+        row.appendChild(adj);
+        box.appendChild(row);
+      });
     });
   }
   function renderMarkPlay_() {
@@ -282,12 +322,12 @@
     var nav = RE.Main.navList(), idx = RE.Main.navIndex();
     var cur = nav[idx];
     var label = cur ? cur.label : '';
-    if (cur && cur.id !== K.SECTION_NONE) {
+    if (cur && cur.blockId !== K.SECTION_NONE) {
       var n = st.view.blocks.length;
-      label += '（' + (idx + 1) + '/' + n + '）';
-      var sec = RE.Main.sectionEntry(cur.id);
+      label += '（' + (cur.blockIndex + 1) + '/' + n + '）';
+      var sec = RE.Main.sectionEntry(cur.blockId);
       if (sec && sec.done) label += ' ✓';
-      if (sec && sec.startSec === null) label += ' —';
+      if (sec && !sec.parts.length) label += ' —';
     }
     el['btn-sec-label'].textContent = label;
     el['btn-sec-prev'].disabled = idx <= 0;
@@ -305,9 +345,9 @@
     el['btn-stop'].disabled = !playable;
     el['btn-prev-chunk'].disabled = !playable || !chunk;
     el['btn-next-chunk'].disabled = !playable || !chunk;
-    var isNone = !cur || cur.id === K.SECTION_NONE;
-    var secE = cur ? RE.Main.sectionEntry(cur.id) : null;
-    el['btn-complete'].disabled = isNone || !secE || secE.startSec === null;
+    var isNone = !cur || cur.blockId === K.SECTION_NONE;
+    var secE = cur ? RE.Main.sectionEntry(cur.blockId) : null;
+    el['btn-complete'].disabled = isNone || !secE || !secE.parts.length;
     el['btn-complete'].textContent = secE && secE.done ? '完了を取り消す' : 'この節を完了';
     el['btn-complete'].classList.toggle('is-done', !!(secE && secE.done));
     var playing = st.playerState === S.PLAYING;
@@ -370,11 +410,13 @@
     if (!open || !RE.State.view) return;
     var box = el['list-sections']; box.textContent = '';
     RE.Main.navList().forEach(function (b) {
-      var row = make_('button', 'sheet-row' + (b.id === RE.State.blockId ? ' is-current' : '')); row.type = 'button';
-      row.setAttribute('data-id', b.id);
+      var current = b.blockId === RE.State.blockId && b.part === RE.State.partIndex;
+      var row = make_('button', 'sheet-row' + (current ? ' is-current' : '')); row.type = 'button';
+      row.setAttribute('data-id', b.blockId);
+      row.setAttribute('data-part', b.part);
       row.appendChild(make_('span', 'sheet-label', b.label));
-      var sec = RE.Main.sectionEntry(b.id);
-      var mark = sec ? (sec.startSec === null ? '—' : (sec.done ? '✓' : '')) : '';
+      var sec = RE.Main.sectionEntry(b.blockId);
+      var mark = sec ? (!sec.parts.length ? '—' : (sec.done ? '✓' : '')) : '';
       row.appendChild(make_('span', 'sheet-mark', mark));
       box.appendChild(row);
     });

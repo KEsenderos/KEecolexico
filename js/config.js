@@ -5,7 +5,7 @@
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '0.4.1',
+    APP_VERSION: '0.5',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -102,7 +102,14 @@
       DAY_START_HOUR: 4,                        // 1日の区切り（午前4時）
       REPEAT: { SECTION: 'section', CHUNK: 'chunk' },
       REPEAT_DEFAULT: 'section',
-      MARK_LEAD_SEC: 1,                         // 「ここから」を押した位置から戻す秒数
+      MARK_LEAD_SEC: 1,                         // 記録のボタン（ここから・節中断・中断終了・節END・次節START）を押した位置から戻す秒数
+      PART_LETTERS: 'ABCDEFGHIJ',               // 区間の呼び名。1つの節の区間は最大この文字数（10）
+      MARK_UNDO_MAX: 50,                        // 「1つ取り消す」で戻せる回数
+      MARK_LABELS: {
+        HERE: 'ここから：{name}', ALL: 'すべて記録しました',
+        BREAK: '節中断', RESUME: '中断終了',
+        END: '節END', NEXT_START: '次節START：{name}'
+      },
       ADJUST_SEC: 1,                            // 微調整ボタン1回の秒数
       SEEK_SEC: 5,                              // 記録画面の −5秒／＋5秒
       SECTION_NONE: 'B-NONE',
@@ -128,7 +135,9 @@
       LOAD_ERROR: '音声を読み込めませんでした。記事を削除して、もう一度追加してください',
       NEED_MARK: '先に、各節の始まりの位置を記録してください',
       NO_AUDIO_SECTION: 'この節は音声と結び付いていません（とばした節）',
-      MARK_ORDER: '前の節より後の位置にしてください',
+      MARK_ORDER: '前後の区間と重ならない位置にしてください',
+      MARK_PART_MAX: '1つの節の区間は10までです',
+      MARK_RESET_CONFIRM: 'もう一度押すと、すべての記録を消して最初からになります',
       ALL_DONE: 'この記事はすべて完了しました',
       DELETE_CONFIRM: 'もう一度押すと削除します',
       DELETED: '削除しました',
