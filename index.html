@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0C1016">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="KEecolexico">
+<title>KEecolexico</title>
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="css/style.css">
+<!-- index.html — KEecolexico の全画面（表示する画面を切り替えて使う） -->
+</head>
+<body>
+<main class="app">
+
+  <!-- ===== 記事一覧 ===== -->
+  <section id="screen-library" class="screen">
+    <header class="topbar">
+      <div class="brand"><span class="brand-ke">KE</span><span>ecolexico</span></div>
+      <button id="btn-open-settings" class="icon-btn" type="button" aria-label="設定">⚙</button>
+    </header>
+    <button id="btn-add-drive" class="btn btn-primary btn-big" type="button">＋ ドライブから追加</button>
+    <button id="btn-add-article" class="btn btn-small" type="button">iPhoneのファイルから追加</button>
+    <div id="msg-library" class="msg" role="status"></div>
+    <div id="list-articles" class="list"></div>
+    <div id="txt-library-empty" class="empty">（記事がありません）</div>
+    <div id="txt-version" class="version"></div>
+  </section>
+
+  <!-- ===== ドライブから追加 ===== -->
+  <section id="screen-drive" class="screen" hidden>
+    <header class="subbar">
+      <button id="btn-drive-back" class="btn btn-back" type="button">◀ 戻る</button>
+      <div class="subtitle">ドライブから追加</div>
+    </header>
+    <button id="btn-drive-reload" class="btn" type="button">一覧を読み直す</button>
+    <div id="msg-drive" class="msg" role="status"></div>
+    <button id="btn-drive-pick-audio" class="btn btn-primary" type="button" hidden>音声だけiPhoneから選ぶ</button>
+    <input id="input-drive-audio" type="file" hidden>
+    <div id="list-drive" class="list"></div>
+  </section>
+
+  <!-- ===== iPhoneのファイルから追加（予備） ===== -->
+  <section id="screen-import" class="screen" hidden>
+    <header class="subbar">
+      <button id="btn-import-back" class="btn btn-back" type="button">◀ 戻る</button>
+      <div class="subtitle">iPhoneのファイルから追加</div>
+    </header>
+    <div class="card">
+      <div class="step">① 記事の本文を貼る</div>
+      <textarea id="input-article" class="textarea" rows="6" placeholder="記事の本文を貼り付け"></textarea>
+      <button id="btn-pick-txt" class="btn btn-small" type="button">.txtを選ぶ</button>
+      <input id="input-txt" type="file" hidden>
+      <div id="txt-parse-summary" class="summary"></div>
+    </div>
+    <div class="card">
+      <div class="step-row"><span class="step">② CSVを選ぶ</span><button id="btn-pick-csv" class="btn btn-small" type="button">CSVを選ぶ</button></div>
+      <input id="input-csv" type="file" hidden>
+      <div id="txt-csv-summary" class="summary"></div>
+    </div>
+    <div class="card">
+      <div class="step-row"><span class="step">③ 音声を選ぶ</span><button id="btn-pick-audio" class="btn btn-small" type="button">音声を選ぶ</button></div>
+      <input id="input-audio" type="file" hidden>
+      <div id="txt-audio-summary" class="summary"></div>
+    </div>
+    <div class="card">
+      <div class="step">④ 記事名</div>
+      <input id="input-title" class="input" type="text">
+    </div>
+    <button id="btn-import-save" class="btn btn-primary btn-big" type="button">保存して、節の位置の記録へ</button>
+    <div id="msg-import" class="msg" role="status"></div>
+  </section>
+
+  <!-- ===== 節の位置の記録 ===== -->
+  <section id="screen-mark" class="screen" hidden>
+    <header class="subbar">
+      <button id="btn-mark-back" class="btn btn-back" type="button">◀ やめる</button>
+      <div class="subtitle">節の位置の記録</div>
+    </header>
+    <div id="txt-mark-pos" class="mark-pos">00:00 / 00:00</div>
+    <div class="row-center">
+      <button id="btn-mark-back5" class="btn btn-round" type="button">−5秒</button>
+      <button id="btn-mark-play" class="btn btn-play" type="button" aria-label="再生">▶</button>
+      <button id="btn-mark-fwd5" class="btn btn-round" type="button">＋5秒</button>
+    </div>
+    <button id="btn-mark-here" class="btn btn-here" type="button">ここから</button>
+    <div class="row-2">
+      <button id="btn-mark-skip" class="btn" type="button">この節は音声にない（とばす）</button>
+      <button id="btn-mark-undo" class="btn" type="button">1つ取り消す</button>
+    </div>
+    <div id="msg-mark" class="msg" role="status"></div>
+    <div class="sep-title">─ 記録した位置 ─</div>
+    <div id="list-marks" class="list"></div>
+    <button id="btn-mark-save" class="btn btn-primary btn-big" type="button">保存</button>
+  </section>
+
+  <!-- ===== 学習 ===== -->
+  <section id="screen-study" class="screen" hidden>
+    <div id="study-top" class="study-top">
+      <div class="study-head">
+        <button id="btn-study-back" class="icon-btn" type="button" aria-label="記事一覧へ">◀</button>
+        <div id="txt-study-title" class="study-title"></div>
+        <button id="btn-study-tools" class="icon-btn" type="button" aria-label="再生の設定">⚙</button>
+      </div>
+      <div id="txt-progress" class="progress"></div>
+      <div class="sec-nav">
+        <button id="btn-sec-prev" class="btn btn-nav" type="button">◀前</button>
+        <button id="btn-sec-label" class="btn btn-sec-label" type="button"></button>
+        <button id="btn-sec-next" class="btn btn-nav" type="button">次▶</button>
+      </div>
+      <div class="seg">
+        <button id="btn-mode-section" class="seg-btn" type="button">節全体</button>
+        <button id="btn-mode-chunk" class="seg-btn" type="button">◯秒区切り</button>
+      </div>
+      <div class="range">
+        <span id="txt-range-start" class="range-time">--:--</span>
+        <div id="bar-range" class="bar"><div id="bar-range-fill" class="bar-fill"></div></div>
+        <span id="txt-range-end" class="range-time">--:--</span>
+      </div>
+      <div class="controls">
+        <button id="btn-stop" class="btn btn-ctl" type="button" aria-label="停止">■</button>
+        <button id="btn-play" class="btn btn-play" type="button" aria-label="再生">▶</button>
+        <button id="btn-prev-chunk" class="btn btn-ctl" type="button">◀◀<small>戻る</small></button>
+        <button id="btn-next-chunk" class="btn btn-ctl btn-next" type="button">区間移動<small>▶▶</small></button>
+      </div>
+      <button id="btn-complete" class="btn btn-complete" type="button">この節を完了</button>
+      <div id="panel-tools" class="tools" hidden>
+        <div class="tool-row">
+          <span class="tool-label">移動時間</span>
+          <button id="btn-move-minus" class="btn btn-mini" type="button">−</button>
+          <input id="input-move" class="input input-move" type="number" min="1" max="60" step="1" inputmode="numeric">
+          <span class="tool-unit">秒</span>
+          <button id="btn-move-plus" class="btn btn-mini" type="button">＋</button>
+        </div>
+        <div class="tool-row">
+          <span class="tool-label">間（秒）</span>
+          <button id="btn-gap-0" class="opt-btn gap-btn" type="button" data-gap="0">なし</button>
+          <button id="btn-gap-1" class="opt-btn gap-btn" type="button" data-gap="1">1</button>
+          <button id="btn-gap-2" class="opt-btn gap-btn" type="button" data-gap="2">2</button>
+          <button id="btn-gap-3" class="opt-btn gap-btn" type="button" data-gap="3">3</button>
+          <button id="btn-gap-5" class="opt-btn gap-btn" type="button" data-gap="5">5</button>
+        </div>
+        <div class="tool-row">
+          <span class="tool-label">倍速</span>
+          <button id="btn-rate-12" class="opt-btn rate-btn" type="button" data-rate="1.2">1.2</button>
+          <button id="btn-rate-11" class="opt-btn rate-btn" type="button" data-rate="1.1">1.1</button>
+          <button id="btn-rate-10" class="opt-btn rate-btn" type="button" data-rate="1.0">1.0</button>
+          <button id="btn-rate-09" class="opt-btn rate-btn" type="button" data-rate="0.9">0.9</button>
+          <button id="btn-rate-08" class="opt-btn rate-btn" type="button" data-rate="0.8">0.8</button>
+        </div>
+      </div>
+      <div id="msg-study" class="msg msg-tight" role="status"></div>
+    </div>
+    <div id="list-words" class="words"></div>
+  </section>
+
+  <!-- ===== 設定 ===== -->
+  <section id="screen-settings" class="screen" hidden>
+    <header class="subbar">
+      <button id="btn-settings-back" class="btn btn-back" type="button">◀ 戻る</button>
+      <div class="subtitle">設定</div>
+    </header>
+    <div class="card">
+      <div class="step">文字サイズ</div>
+      <div class="row-3">
+        <button id="btn-font-L" class="opt-btn" type="button">大</button>
+        <button id="btn-font-M" class="opt-btn" type="button">中</button>
+        <button id="btn-font-S" class="opt-btn" type="button">小</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="step">締切の曜日</div>
+      <div class="row-2">
+        <button id="btn-deadline-5" class="opt-btn" type="button">金曜</button>
+        <button id="btn-deadline-6" class="opt-btn" type="button">土曜</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="step">Googleドライブ</div>
+      <label class="field-label" for="input-gas-url">GASのウェブアプリのURL</label>
+      <input id="input-gas-url" class="input" type="url" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <label class="field-label" for="input-gas-key">合言葉</label>
+      <input id="input-gas-key" class="input" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button id="btn-gas-save" class="btn btn-primary" type="button">保存</button>
+    </div>
+    <div id="msg-settings" class="msg" role="status"></div>
+  </section>
+
+</main>
+
+<!-- ===== 節の一覧（学習画面から開く） ===== -->
+<div id="sheet-sections" class="sheet" hidden>
+  <div class="sheet-box">
+    <div class="sheet-head"><span>節を選ぶ</span><button id="btn-sheet-close" class="icon-btn" type="button" aria-label="閉じる">✕</button></div>
+    <div id="list-sections" class="sheet-list"></div>
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/stretch.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/mediaSession.js"></script>
+<script src="js/article.js"></script>
+<script src="js/lexicon.js"></script>
+<script src="js/db.js"></script>
+<script src="js/drive.js"></script>
+<script src="js/progress.js"></script>
+<script src="js/state.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
