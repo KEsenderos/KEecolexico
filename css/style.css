@@ -14,6 +14,9 @@
   --accent: #FFB020;
   --accent-ink: #1A1204;
   --danger: #FF4D4D;
+  --logo-teal: #2DD4BF;     /* ロゴの「eco」 */
+  --logo-indigo: #A5B4FC;   /* ロゴの「lexico」 */
+  --header-h: calc(env(safe-area-inset-top, 0px) + 52px);   /* 上部のロゴの帯の高さ */
   --fs: 17px;
   --fs-es: 19px;
   --num-font: ui-rounded, "SF Pro Rounded", -apple-system, "Helvetica Neue", system-ui, sans-serif;
@@ -39,9 +42,19 @@ button:disabled { cursor: default; opacity: 0.4; }
 .screen { display: flex; flex-direction: column; gap: 12px; }
 
 /* 見出し */
-.topbar { display: flex; align-items: center; justify-content: space-between; min-height: 48px; }
-.brand { font-family: var(--num-font); font-weight: 700; font-size: 24px; letter-spacing: -0.01em; }
-.brand-ke { color: var(--accent); }
+.app-header {
+  position: sticky; top: 0; z-index: 10; height: var(--header-h);
+  margin: calc(-12px - env(safe-area-inset-top, 0px)) -16px 12px;
+  padding: env(safe-area-inset-top, 0px) 16px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg); border-bottom: 1px solid var(--line-soft);
+}
+.app-brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.app-logo { width: 30px; height: 30px; border-radius: 8px; display: block; flex-shrink: 0; }
+.app-wordmark { font-family: var(--num-font); font-weight: 800; font-size: 21px; letter-spacing: -0.01em; white-space: nowrap; }
+.wm-ke { color: var(--text-strong); }
+.wm-eco { color: var(--logo-teal); }
+.wm-lex { color: var(--logo-indigo); }
 .subbar { display: flex; align-items: center; gap: 10px; min-height: 48px; }
 .subtitle { font-weight: 700; font-size: 17px; }
 
@@ -129,8 +142,8 @@ button:disabled { cursor: default; opacity: 0.4; }
 
 /* 学習（上部は固定、下の一覧だけ流れる） */
 .study-top {
-  position: sticky; top: 0; z-index: 5; background: var(--bg);
-  margin: calc(-12px - env(safe-area-inset-top, 0px)) -16px 0; padding: calc(env(safe-area-inset-top, 0px) + 8px) 16px 8px;
+  position: sticky; top: var(--header-h); z-index: 5; background: var(--bg);
+  margin: -12px -16px 0; padding: 8px 16px 8px;
   border-bottom: 1px solid var(--line-soft); display: flex; flex-direction: column; gap: 8px;
 }
 .study-head { display: flex; align-items: center; gap: 10px; }
@@ -226,3 +239,10 @@ button:disabled { cursor: default; opacity: 0.4; }
 .rate-row { display: flex; gap: 6px; }
 .rate-row .opt-btn { min-height: 40px; font-size: 15px; }
 .bar { flex: none; }
+
+/* 受け渡し（仕様 8.5・8.8） */
+.sync-status { font-size: 12px; color: var(--muted); margin: -2px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet.sheet-center { align-items: center; z-index: 30; }
+.sync-box { padding: 18px 16px; display: flex; flex-direction: column; gap: 10px; border-radius: 18px; width: calc(100% - 32px); }
+.sync-title { font-weight: 700; font-size: 16px; }
+.sync-line { font-size: 14px; color: var(--sub); }

@@ -8,7 +8,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="KEecolexico">
 <title>KEecolexico</title>
-<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/style.css">
@@ -17,12 +18,17 @@
 <body>
 <main class="app">
 
+  <!-- ===== ロゴ（どの画面でも上部に固定。仕様 8.1.1） ===== -->
+  <header id="app-header" class="app-header">
+    <div class="app-brand">
+      <img id="img-app-logo" class="app-logo" src="icons/icon-192.png" alt="" width="30" height="30">
+      <div class="app-wordmark" aria-label="KEecolexico"><span class="wm-ke">KE</span><span class="wm-eco">eco</span><span class="wm-lex">lexico</span></div>
+    </div>
+    <button id="btn-open-settings" class="icon-btn" type="button" aria-label="設定">⚙</button>
+  </header>
+
   <!-- ===== 記事一覧 ===== -->
   <section id="screen-library" class="screen">
-    <header class="topbar">
-      <div class="brand"><span class="brand-ke">KE</span><span>ecolexico</span></div>
-      <button id="btn-open-settings" class="icon-btn" type="button" aria-label="設定">⚙</button>
-    </header>
     <button id="btn-add-drive" class="btn btn-primary btn-big" type="button">＋ ドライブから追加</button>
     <button id="btn-add-article" class="btn btn-small" type="button">iPhoneのファイルから追加</button>
     <div id="msg-library" class="msg" role="status"></div>
@@ -111,6 +117,7 @@
         <div id="txt-study-title" class="study-title"></div>
         <button id="btn-study-tools" class="icon-btn" type="button" aria-label="再生の設定">⚙</button>
       </div>
+      <div id="txt-sync-status" class="sync-status" hidden></div>
       <div id="txt-progress" class="progress"></div>
       <div class="sec-nav">
         <button id="btn-sec-prev" class="btn btn-nav" type="button">◀前</button>
@@ -252,6 +259,17 @@
   </div>
 </div>
 
+<!-- ===== 受け渡しの確認（仕様 8.8） ===== -->
+<div id="sheet-sync" class="sheet sheet-center" hidden>
+  <div class="sheet-box sync-box">
+    <div id="txt-sync-title" class="sync-title"></div>
+    <div id="txt-sync-remote" class="sync-line"></div>
+    <div id="txt-sync-local" class="sync-line"></div>
+    <button id="btn-sync-use-remote" class="btn btn-primary" type="button"></button>
+    <button id="btn-sync-keep-local" class="btn" type="button"></button>
+  </div>
+</div>
+
 <script src="js/config.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/stretch.js"></script>
@@ -261,6 +279,7 @@
 <script src="js/lexicon.js"></script>
 <script src="js/db.js"></script>
 <script src="js/drive.js"></script>
+<script src="js/sync.js"></script>
 <script src="js/progress.js"></script>
 <script src="js/state.js"></script>
 <script src="js/ui.js"></script>

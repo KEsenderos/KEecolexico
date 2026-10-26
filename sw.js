@@ -1,11 +1,11 @@
 // sw.js — アプリ本体をiPhoneに保存して、通信なしでも開けるようにする
-var CACHE_VERSION = '0.6';                 // APP_VERSION と同じ値にする
+var CACHE_VERSION = '0.7.1';                 // APP_VERSION と同じ値にする
 var CACHE_PREFIX = 'kx-cache-';
 var CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 var APP_SHELL_FILES = ['./', './index.html', './manifest.webmanifest', './css/style.css',
   './js/config.js', './js/utils.js', './js/stretch.js', './js/engine.js', './js/mediaSession.js',
-  './js/article.js', './js/lexicon.js', './js/db.js', './js/drive.js', './js/progress.js', './js/state.js',
-  './js/ui.js', './js/main.js', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
+  './js/article.js', './js/lexicon.js', './js/db.js', './js/drive.js', './js/sync.js', './js/progress.js', './js/state.js',
+  './js/ui.js', './js/main.js', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png', './icons/favicon.svg', './icons/favicon-32.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE_NAME).then(function (c) { return c.addAll(APP_SHELL_FILES); }));
   self.skipWaiting();

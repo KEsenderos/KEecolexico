@@ -106,6 +106,8 @@
       renderSectionSheet(false);
       h.onSectionGo(b.getAttribute('data-id'), Number(b.getAttribute('data-part')));
     });
+    on('btn-sync-use-remote', function () { h.onSyncUseRemote(); });
+    on('btn-sync-keep-local', function () { h.onSyncKeepLocal(); });
     on('btn-range-edit', function () { h.onToggleRangeEdit(); });
     on('btn-mark-start', function () { h.onMarkRange('start'); });
     on('btn-mark-end-range', function () { h.onMarkRange('end'); });
@@ -165,6 +167,7 @@
   function showScreen(id) {
     SCREENS.forEach(function (s) { el[s].hidden = s !== id; });
     if (id !== 'screen-study') renderSectionSheet(false);
+    el['btn-open-settings'].hidden = id !== 'screen-library';   // 設定ボタンは記事一覧のときだけ
     RE.State.screen = id;
     window.scrollTo(0, 0);
   }
@@ -326,6 +329,7 @@
     var st = RE.State, a = st.article;
     if (!a || !st.view) return;
     el['txt-study-title'].textContent = a.title;
+    renderSyncStatus();
     el['txt-progress'].textContent = RE.Main.studyProgressText();
     var nav = RE.Main.navList(), idx = RE.Main.navIndex();
     var cur = nav[idx];
@@ -437,6 +441,35 @@
     });
   }
 
+  // 学習画面の受け渡しの状態（仕様 6.7.4）
+  function renderSyncStatus() {
+    var map = { checking: M.SYNC_STATUS_CHECKING, same: M.SYNC_STATUS_SAME, pending: M.SYNC_STATUS_PENDING,
+                offline: M.SYNC_STATUS_OFFLINE, mismatch: M.SYNC_STATUS_MISMATCH };
+    var t = map[RE.State.syncStatus] || '';
+    el['txt-sync-status'].textContent = t;
+    el['txt-sync-status'].hidden = !t;
+  }
+
+  // 「月/日 時:分」
+  function formatSyncDate_(ms) {
+    var d = new Date(Number(ms) || 0), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  // 受け渡しの確認画面（仕様 8.8）
+  function renderSyncSheet(open) {
+    var r = RE.State.syncRemote, a = RE.State.article;
+    el['sheet-sync'].hidden = !(open && r && a);
+    if (el['sheet-sync'].hidden) return;
+    var dev = r.device || K.SYNC_DEVICE_OTHER;
+    var rs = RE.Sync.summary(r.sections), ls = RE.Sync.summary(a.sections);
+    el['txt-sync-title'].textContent = M.SYNC_CONFLICT_TITLE;
+    el['txt-sync-remote'].textContent = fill(M.SYNC_CONFLICT_REMOTE, { device: dev, date: formatSyncDate_(r.savedAt), parts: rs.parts, done: rs.done });
+    el['txt-sync-local'].textContent = fill(M.SYNC_CONFLICT_LOCAL, { parts: ls.parts, done: ls.done });
+    el['btn-sync-use-remote'].textContent = fill(M.SYNC_USE_REMOTE, { device: dev });
+    el['btn-sync-keep-local'].textContent = M.SYNC_KEEP_LOCAL;
+  }
+
   // 位置の表示（学習画面はバーの塗り、記録画面は時刻）
   function updatePosition(sec) {
     if (RE.State.screen === 'screen-study') {
@@ -471,6 +504,6 @@
     renderImport: renderImport, setImportSummary: setImportSummary, setImportTitle: setImportTitle, setArticleText: setArticleText,
     renderMark: renderMark, renderStudyTop: renderStudyTop, renderWordList: renderWordList,
     renderSectionSheet: renderSectionSheet, updatePosition: updatePosition, renderPlayButtons: renderPlayButtons,
-    renderSettings: renderSettings
+    renderSettings: renderSettings, renderSyncStatus: renderSyncStatus, renderSyncSheet: renderSyncSheet
   };
 })();

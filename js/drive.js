@@ -14,20 +14,21 @@
   }
   function isReady() { var s = getSettings(); return !!(s.url && s.key); }
 
-  // GASを1回呼ぶ。時間切れなら1回だけやり直す。失敗は {ok:false, code}
-  function call_(params, retry) {
+  // GASを1回呼ぶ。つながらなければ1回だけやり直す（retry が true のときはやり直さない）。失敗は {ok:false, code}
+  // timeoutMs を省くと DRIVE_TIMEOUT_MS
+  function call_(params, retry, timeoutMs) {
     var s = getSettings();
     if (!s.url || !s.key) return Promise.resolve({ ok: false, code: 'NO_SETTINGS' });
     var q = Object.keys(params).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); });
     q.push('key=' + encodeURIComponent(s.key));
     var ctl = new AbortController();
-    var timer = setTimeout(function () { ctl.abort(); }, K().DRIVE_TIMEOUT_MS);
+    var timer = setTimeout(function () { ctl.abort(); }, timeoutMs || K().DRIVE_TIMEOUT_MS);
     return fetch(s.url + (s.url.indexOf('?') >= 0 ? '&' : '?') + q.join('&'), { signal: ctl.signal })
       .then(function (r) { return r.json(); })
       .catch(function () { return { ok: false, code: 'NETWORK' }; })
       .then(function (res) {
         clearTimeout(timer);
-        if (!res.ok && res.code === 'NETWORK' && !retry) return call_(params, true);
+        if (!res.ok && res.code === 'NETWORK' && !retry) return call_(params, true, timeoutMs);
         return res;
       });
   }
@@ -53,7 +54,24 @@
     }
     return next(0);
   }
+  // 受け渡しファイルを読む。{ok:true, sync:object|null}。記事を開くたびに呼ぶので、やり直さず短く待つ
+  function fetchSync(folderId) { return call_({ action: 'sync', folderId: folderId }, true, K().SYNC_TIMEOUT_MS); }
+  // 受け渡しファイルを書く。{ok:true, savedAt} か {ok:false, code, sync}
+  function putSync(folderId, baseSavedAt, data, force) {
+    var s = getSettings();
+    if (!s.url || !s.key) return Promise.resolve({ ok: false, code: 'NO_SETTINGS' });
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, K().SYNC_TIMEOUT_MS);
+    var body = JSON.stringify({ key: s.key, action: 'putSync', folderId: folderId,
+                                baseSavedAt: baseSavedAt || 0, force: !!force, data: data });
+    // 本文は文字列のまま送る（text/plain になり、ブラウザの事前確認が起きない。headers は付けない）
+    return fetch(s.url, { method: 'POST', body: body, signal: ctl.signal })
+      .then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false, code: 'NETWORK' }; })
+      .then(function (res) { clearTimeout(timer); return res; });
+  }
   window.RE = window.RE || {};
   RE.Drive = { getSettings: getSettings, saveSettings: saveSettings, isReady: isReady,
-               listArticles: listArticles, fetchTexts: fetchTexts, fetchAudio: fetchAudio };
+               listArticles: listArticles, fetchTexts: fetchTexts, fetchAudio: fetchAudio,
+               fetchSync: fetchSync, putSync: putSync };
 })();

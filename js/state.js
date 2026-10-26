@@ -43,11 +43,14 @@
     RE.State.pendingDeleteId = '';      // 削除の1回目を押した記事
     RE.State.toolsOpen = false;         // 再生の設定の開閉
     RE.State.sheetOpen = false;         // 節の一覧の開閉
+    RE.State.syncStatus = 'off';        // 受け渡しの状態（仕様 6.7.4）
+    RE.State.syncRemote = null;         // 確認画面に出しているドライブの中身
+    RE.State.syncAppliedFrom = null;    // 自動で読み込んだ端末名（メッセージを出したら null）
   }
 
   // 追加画面・ドライブ取り込みの途中の入力の初期値
   function newDraft() {
-    return { text: '', csvText: '', file: null, durationSec: 0, title: '', driveFolderId: '' };
+    return { text: '', csvText: '', file: null, durationSec: 0, title: '', driveFolderId: '', sync: null };
   }
 
   RE.State = { init: init, newDraft: newDraft };

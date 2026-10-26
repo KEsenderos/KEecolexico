@@ -5,7 +5,7 @@
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '0.6',
+    APP_VERSION: '0.7.1',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -116,6 +116,10 @@
       STORAGE_KEY_GAS_URL: 'kx.gasUrl',         // GASのウェブアプリのURL
       STORAGE_KEY_GAS_KEY: 'kx.gasKey',         // 合言葉
       DRIVE_TIMEOUT_MS: 60000,                  // GAS1回の呼び出しを待つ最大時間
+      SYNC_TIMEOUT_MS: 10000,                   // 受け渡しファイルの読み書きを待つ最大時間
+      SYNC_APP: 'KEecolexico',                  // 受け渡しファイルの app の値
+      SYNC_FORMAT: 1,                           // 受け渡しファイルの形の版
+      SYNC_DEVICE_OTHER: '別の端末',             // iPhone・iPad・Mac のどれでもないときの呼び名
       TXT_ACCEPT: '.txt,text/plain'
     }),
 
@@ -151,7 +155,20 @@
       DRIVE_ERR_BAD_KEY: '合言葉が違います。設定画面を確認してください',
       DRIVE_ERR_NETWORK: 'つながりませんでした。電波の良い所でもう一度押してください',
       DRIVE_ERR_OTHER: 'ドライブから取り込めませんでした（{code}）',
-      SETTINGS_SAVED: '設定を保存しました'
+      SETTINGS_SAVED: '設定を保存しました',
+      SYNC_STATUS_SAME: '☁ ドライブと同じ',
+      SYNC_STATUS_CHECKING: '☁ ドライブを確認中…',
+      SYNC_STATUS_PENDING: '☁ まだドライブへ送れていません（次に開いたときに送ります）',
+      SYNC_STATUS_OFFLINE: '☁ ドライブを確認できませんでした',
+      SYNC_STATUS_MISMATCH: '☁ ドライブの区切りがこの記事と合わないため、受け渡ししていません',
+      SYNC_APPLIED: '{device}で保存した区切り・完了を読み込みました',
+      SYNC_CONFLICT_TITLE: 'ドライブの区切り・完了が、この端末のものと違います',
+      SYNC_CONFLICT_REMOTE: 'ドライブ：{device}で{date}に保存（区間{parts}・完了{done}節）',
+      SYNC_CONFLICT_LOCAL: 'この端末：区間{parts}・完了{done}節',
+      SYNC_USE_REMOTE: '{device}のものに置き換える',
+      SYNC_KEEP_LOCAL: 'この端末のものを残す（ドライブを上書き）',
+      SYNC_REPLACED: '{device}のものに置き換えました',
+      SYNC_KEPT: 'この端末のものでドライブを上書きしました'
     })
   });
 })();

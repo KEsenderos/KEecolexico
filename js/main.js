@@ -157,6 +157,93 @@
     return RE.Db.saveArticle(a);
   }
 
+  // ===== 端末どうしの受け渡し（仕様 6.7） =====
+  var syncChain_ = Promise.resolve();
+
+  // 受け渡しの対象か
+  function canSync_(a) { return !!(a && a.driveFolderId && RE.Drive.isReady()); }
+  // 区切り・完了がこの端末にあるか
+  function hasLocalData_(a) { return !!a.marked || a.sections.some(function (s) { return !!s.done; }); }
+  // v0.6 以前の記事に項目を足す。足したら true
+  function migrateSync_(a) {
+    if (typeof a.syncSavedAt === 'number') return false;
+    a.syncSavedAt = 0; a.syncDirty = hasLocalData_(a);
+    return true;
+  }
+  // 通信を順番に1つずつ行う
+  function queueSync_(fn) { syncChain_ = syncChain_.then(fn).catch(function (e) { console.error(e); return 'pending'; }); return syncChain_; }
+  // 状態を表示に反映
+  function setSyncStatus_(a, status) {
+    if (ST().article && ST().article.articleId === a.articleId) { ST().syncStatus = status; RE.UI.renderSyncStatus(); }
+    return status;
+  }
+  // 区切り・完了を変えたあとに呼ぶ
+  function markChanged_() {
+    var a = ST().article;
+    a.syncDirty = true;
+    return saveArticle_().then(function () {
+      if (!canSync_(a)) return setSyncStatus_(a, 'off');
+      return queueSync_(function () { return pushSync_(a, false); });
+    });
+  }
+  // 送る（6.7.6）
+  function pushSync_(a, force) {
+    return RE.Drive.putSync(a.driveFolderId, a.syncSavedAt, RE.Sync.makeData(a), force).then(function (res) {
+      if (res.ok) { a.syncSavedAt = res.savedAt; a.syncDirty = false; return RE.Db.saveArticle(a).then(function () { return setSyncStatus_(a, 'same'); }); }
+      if (res.code !== 'CONFLICT') return setSyncStatus_(a, 'pending');
+      if (!res.sync) return pushSync_(a, true);
+      if (!RE.Sync.isValidFor(res.sync, a)) return setSyncStatus_(a, 'mismatch');
+      if (RE.Sync.sameContent(res.sync, a)) {
+        a.syncSavedAt = Number(res.sync.savedAt); a.syncDirty = false;
+        return RE.Db.saveArticle(a).then(function () { return setSyncStatus_(a, 'same'); });
+      }
+      return openConflict_(a, res.sync);
+    });
+  }
+  // 読む（6.7.5）。結果は 'same' などの状態。自動で読み込んだときは 'applied'
+  function pullSync_(a) {
+    return RE.Drive.fetchSync(a.driveFolderId).then(function (res) {
+      if (!res.ok) return setSyncStatus_(a, a.syncDirty ? 'pending' : 'offline');
+      var r = res.sync;
+      if (!r) return hasLocalData_(a) ? pushSync_(a, false) : setSyncStatus_(a, 'same');
+      if (!RE.Sync.isValidFor(r, a)) return setSyncStatus_(a, 'mismatch');
+      if (Number(r.savedAt) === a.syncSavedAt) return a.syncDirty ? pushSync_(a, false) : setSyncStatus_(a, 'same');
+      if (RE.Sync.sameContent(r, a) || !a.syncDirty) {
+        var changed = !RE.Sync.sameContent(r, a);
+        RE.Sync.apply(a, r);
+        return RE.Db.saveArticle(a).then(function () {
+          setSyncStatus_(a, 'same');
+          if (changed) ST().syncAppliedFrom = r.device || RE.Config.KX.SYNC_DEVICE_OTHER;
+          return changed ? 'applied' : 'same';
+        });
+      }
+      return openConflict_(a, r);
+    });
+  }
+  // 確認画面を出す（8.8）
+  function openConflict_(a, r) {
+    if (!ST().article || ST().article.articleId !== a.articleId) return 'pending';   // 別の記事を開いていたら、次に開いたときに確認する
+    ST().syncRemote = r;
+    RE.UI.renderSyncSheet(true);
+    return setSyncStatus_(a, 'conflict');
+  }
+
+  // 今の画面のメッセージ欄
+  function showSyncMsg_(text) {
+    var map = { 'screen-study': 'study', 'screen-mark': 'mark', 'screen-library': 'library' };
+    var id = map[ST().screen]; if (id) RE.UI.showMessage(id, text);
+  }
+  // ドライブの中身に置き換えたあと、今の画面を開き直す（仕様 8.8）
+  function reopenAfterSync_(text) {
+    var st = ST(), scr = st.screen, a = st.article;
+    if (scr === 'screen-mark') {
+      leaveMark_();
+      if (a.marked && st.markFromSaved) openMark_(true); else if (a.marked) openStudyLast_(); else openMark_(false);
+    }
+    else if (scr === 'screen-study') { if (a.marked) openStudyLast_(); else openMark_(false); }
+    showSyncMsg_(text);
+  }
+
   // 進捗の文（学習画面）
   function studyProgressText() {
     var a = ST().article; if (!a) return '';
@@ -308,7 +395,11 @@
       if (!a) { RE.UI.showMessage('library', M.LOAD_ERROR, true); return; }
       var view = buildView_(a.articleText, a.csvText);
       syncSections_(a, view);
+      migrateSync_(a);
       st.article = a; st.view = view;
+      var pull = Promise.resolve('off');
+      if (canSync_(a)) { st.syncStatus = 'checking'; pull = queueSync_(function () { return pullSync_(a); }); }
+      else st.syncStatus = 'off';
       var load = Promise.resolve(true);
       if (st.loadedArticleId !== id) {
         RE.UI.showMessage('library', M.LOADING);
@@ -325,7 +416,8 @@
           });
         }).catch(function (e) { console.error(e); return false; });
       }
-      return load.then(function (ok) {
+      return Promise.all([load, pull]).then(function (rs) {
+        var ok = rs[0];
         if (!ok) { RE.UI.showMessage('library', M.LOAD_ERROR, true); return; }
         RE.UI.clearMessage('library');
         saveArticle_();
@@ -338,6 +430,7 @@
         } else {
           openStudyLast_();
         }
+        if (st.syncAppliedFrom) { showSyncMsg_(fill(M.SYNC_APPLIED, { device: st.syncAppliedFrom })); st.syncAppliedFrom = null; }
       });
     });
   }
@@ -505,8 +598,14 @@
       articleText: draft.text, csvText: draft.csvText,
       audioName: draft.file.name || '', durationSec: draft.durationSec || 0,
       sections: view.blocks.map(function (b) { return { id: b.id, parts: [], done: null }; }),
-      marked: false, lastBlockId: '', lastPart: 0, driveFolderId: draft.driveFolderId || ''
+      marked: false, lastBlockId: '', lastPart: 0, driveFolderId: draft.driveFolderId || '',
+      syncSavedAt: 0, syncDirty: false
     };
+    // ドライブに受け渡しファイルがあれば、区切り・完了も一緒に入れる（仕様 8.7-3）
+    if (draft.sync && RE.Sync.isValidFor(draft.sync, article)) {
+      RE.Sync.apply(article, draft.sync);
+      if (article.marked) ST().syncAppliedFrom = draft.sync.device || K.SYNC_DEVICE_OTHER;
+    }
     return RE.Db.saveAudio(id, draft.file).then(function (ok) {
       if (!ok) return false;
       return RE.Db.saveArticle(article);
@@ -649,7 +748,7 @@
       RE.UI.showMessage('drive', M.DRIVE_LOADING_TEXT);
       RE.Drive.fetchTexts(folderId).then(function (res) {
         if (!res.ok) { st.driveBusy = false; renderDrive_(); RE.UI.showMessage('drive', driveErrorText_(res), true); return; }
-        var draft = { text: res.article || '', csvText: res.csv || '', file: null, durationSec: 0, title: it.name, driveFolderId: folderId };
+        var draft = { text: res.article || '', csvText: res.csv || '', file: null, durationSec: 0, title: it.name, driveFolderId: folderId, sync: res.sync || null };
         if (!checkDraft_(draft, 'drive')) { st.driveBusy = false; renderDrive_(); return; }
         RE.UI.showMessage('drive', fill(M.DRIVE_LOADING_AUDIO, { n: 0, m: '?' }));
         return RE.Drive.fetchAudio(folderId, function (n, m) {
@@ -819,10 +918,9 @@
         sec.parts = ps.filter(function (pt) { return pt.e > pt.s; }).map(function (pt) { return { s: pt.s, e: pt.e }; });
       });
       a.marked = true;
-      saveArticle_().then(function () {
-        leaveMark_();
-        openStudyLast_();
-      });
+      markChanged_();
+      leaveMark_();
+      openStudyLast_();
     },
 
     // --- 学習 ---
@@ -896,17 +994,38 @@
       if (!s || !s.parts.length) return;
       if (s.done) {
         s.done = null;
-        saveArticle_();
+        markChanged_();
         RE.UI.renderStudyTop();
         return;
       }
       s.done = RE.Progress.todayKey();
-      saveArticle_();
+      markChanged_();
       var idx = a.sections.indexOf(s), next = null;
       for (var i = idx + 1; i < a.sections.length; i++) if (a.sections[i].parts.length) { next = a.sections[i]; break; }
       if (next) { RE.Engine.stop(); goSection_(next.id, 0); }
       else RE.UI.renderStudyTop();
       if (RE.Progress.calc(a.sections, st.deadlineWeekday).allDone) RE.UI.showMessage('study', M.ALL_DONE);
+    },
+    // --- 受け渡しの確認（仕様 8.8） ---
+    onSyncUseRemote: function () {
+      var st = ST(), a = st.article, r = st.syncRemote;
+      st.syncRemote = null;
+      RE.UI.renderSyncSheet(false);
+      if (!a || !r) return;
+      RE.Sync.apply(a, r);
+      st.syncStatus = 'same';
+      saveArticle_().then(function () {
+        reopenAfterSync_(fill(M.SYNC_REPLACED, { device: r.device || K.SYNC_DEVICE_OTHER }));
+      });
+    },
+    onSyncKeepLocal: function () {
+      var st = ST(), a = st.article;
+      st.syncRemote = null;
+      RE.UI.renderSyncSheet(false);
+      if (!a) return;
+      queueSync_(function () { return pushSync_(a, true); }).then(function (status) {
+        if (status === 'same') showSyncMsg_(M.SYNC_KEPT);
+      });
     },
     onMoveStep: function (delta) {
       applyMove_(RE.Utils.clamp(ST().moveSec + delta, C.MOVE_SEC_MIN, C.MOVE_SEC_MAX));
