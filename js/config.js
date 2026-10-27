@@ -5,7 +5,7 @@
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '0.7.2',
+    APP_VERSION: '0.7.3',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -116,7 +116,7 @@
       STORAGE_KEY_GAS_URL: 'kx.gasUrl',         // GASのウェブアプリのURL
       STORAGE_KEY_GAS_KEY: 'kx.gasKey',         // 合言葉
       DRIVE_TIMEOUT_MS: 60000,                  // GAS1回の呼び出しを待つ最大時間
-      SYNC_TIMEOUT_MS: 10000,                   // 受け渡しファイルの読み書きを待つ最大時間
+      SYNC_TIMEOUT_MS: 30000,                   // 受け渡しファイルの読み書きを待つ最大時間
       SYNC_APP: 'KEecolexico',                  // 受け渡しファイルの app の値
       SYNC_FORMAT: 1,                           // 受け渡しファイルの形の版
       SYNC_DEVICE_OTHER: '別の端末',             // iPhone・iPad・Mac のどれでもないときの呼び名
@@ -175,7 +175,15 @@
       SYNC_USE_REMOTE: '{device}のものに置き換える',
       SYNC_KEEP_LOCAL: 'この端末のものを残す（ドライブを上書き）',
       SYNC_REPLACED: '{device}のものに置き換えました',
-      SYNC_KEPT: 'この端末のものでドライブを上書きしました'
+      SYNC_KEPT: 'この端末のものでドライブを上書きしました',
+      SYNC_REASON: '理由：{reason}',
+      SYNC_RETRY_HINT: '（ここを押すと、もう一度試します）',
+      BACKUP_FILE_PREFIX: 'keecolexico-backup-',
+      BACKUP_EXPORTED: '書き出しました：{name}（{n}件の記事）',
+      BACKUP_EMPTY: '書き出す記事がありません',
+      BACKUP_BAD: 'KEecolexicoの控えのファイルではありません',
+      BACKUP_IMPORTED: '区切り・完了を読み込みました：{titles}',
+      BACKUP_NO_MATCH: 'この端末に、同じ本文の記事がありません。先に記事を取り込んでから読み込んでください'
     })
   });
 })();

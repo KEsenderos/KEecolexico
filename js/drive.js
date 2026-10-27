@@ -14,6 +14,21 @@
   }
   function isReady() { var s = getSettings(); return !!(s.url && s.key); }
 
+  // 返事を JSON にする。JSON でなければ（GASのエラーのページなど）NOT_JSON と、HTTPの番号・ページの文字（先頭100文字）
+  function parse_(r) {
+    return r.text().then(function (txt) {
+      try { return JSON.parse(txt); } catch (e) {
+        var s = txt.replace(/<(style|script)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        return { ok: false, code: 'NOT_JSON', message: ('HTTP ' + r.status + ' ' + s).slice(0, 100) };
+      }
+    });
+  }
+  // fetch が失敗したとき（時間切れは TIMEOUT、つながらないときは NETWORK）
+  function fail_(e) {
+    var timeout = e && e.name === 'AbortError';
+    return { ok: false, code: timeout ? 'TIMEOUT' : 'NETWORK', message: e ? String(e.message || e).slice(0, 100) : '' };
+  }
+
   // GASを1回呼ぶ。つながらなければ1回だけやり直す（retry が true のときはやり直さない）。失敗は {ok:false, code}
   // timeoutMs を省くと DRIVE_TIMEOUT_MS
   function call_(params, retry, timeoutMs) {
@@ -24,11 +39,11 @@
     var ctl = new AbortController();
     var timer = setTimeout(function () { ctl.abort(); }, timeoutMs || K().DRIVE_TIMEOUT_MS);
     return fetch(s.url + (s.url.indexOf('?') >= 0 ? '&' : '?') + q.join('&'), { signal: ctl.signal })
-      .then(function (r) { return r.json(); })
-      .catch(function () { return { ok: false, code: 'NETWORK' }; })
+      .then(parse_)
+      .catch(fail_)
       .then(function (res) {
         clearTimeout(timer);
-        if (!res.ok && res.code === 'NETWORK' && !retry) return call_(params, true, timeoutMs);
+        if (!res.ok && (res.code === 'NETWORK' || res.code === 'TIMEOUT') && !retry) return call_(params, true, timeoutMs);
         return res;
       });
   }
@@ -66,8 +81,8 @@
                                 baseSavedAt: baseSavedAt || 0, force: !!force, data: data });
     // 本文は文字列のまま送る（text/plain になり、ブラウザの事前確認が起きない。headers は付けない）
     return fetch(s.url, { method: 'POST', body: body, signal: ctl.signal })
-      .then(function (r) { return r.json(); })
-      .catch(function () { return { ok: false, code: 'NETWORK' }; })
+      .then(parse_)
+      .catch(fail_)
       .then(function (res) { clearTimeout(timer); return res; });
   }
   window.RE = window.RE || {};

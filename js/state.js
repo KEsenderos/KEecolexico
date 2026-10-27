@@ -47,6 +47,7 @@
     RE.State.syncStatus = 'off';        // 受け渡しの状態（仕様 6.7.4）
     RE.State.syncRemote = null;         // 確認画面に出しているドライブの中身
     RE.State.syncAppliedFrom = null;    // 自動で読み込んだ端末名（メッセージを出したら null）
+    RE.State.syncError = '';            // 送れなかった・読めなかった理由（GASが返した記号など。仕様 6.7.9）
   }
 
   // 追加画面・ドライブ取り込みの途中の入力の初期値

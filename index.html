@@ -117,7 +117,7 @@
         <div id="txt-study-title" class="study-title"></div>
         <button id="btn-study-tools" class="icon-btn" type="button" aria-label="再生の設定">⚙</button>
       </div>
-      <div id="txt-sync-status" class="sync-status" hidden></div>
+      <button id="txt-sync-status" class="sync-status" type="button" hidden></button>
       <div id="txt-progress" class="progress"></div>
       <div class="sec-nav">
         <button id="btn-sec-prev" class="btn btn-nav" type="button">◀前</button>
@@ -245,6 +245,13 @@
       <label class="field-label" for="input-gas-key">合言葉</label>
       <input id="input-gas-key" class="input" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
       <button id="btn-gas-save" class="btn btn-primary" type="button">保存</button>
+    </div>
+    <div class="card">
+      <div class="step">区切り・完了の控え（ファイル）</div>
+      <div class="field-label">ドライブを通さずに、区切り・完了をファイルで保存・受け渡しします</div>
+      <button id="btn-backup-export" class="btn" type="button">ファイルに書き出す（すべての記事）</button>
+      <button id="btn-backup-import" class="btn" type="button">ファイルから読み込む</button>
+      <input id="input-backup" type="file" accept=".json,application/json" hidden>
     </div>
     <div id="msg-settings" class="msg" role="status"></div>
   </section>

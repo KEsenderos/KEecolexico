@@ -172,6 +172,8 @@
   }
   // 通信を順番に1つずつ行う
   function queueSync_(fn) { syncChain_ = syncChain_.then(fn).catch(function (e) { console.error(e); return 'pending'; }); return syncChain_; }
+  // 失敗の理由の文（GASが返した記号と説明）
+  function errText_(res) { return (res && res.code ? res.code : '?') + (res && res.message ? ' ' + res.message : ''); }
   // 状態を表示に反映
   function setSyncStatus_(a, status) {
     if (ST().article && ST().article.articleId === a.articleId) { ST().syncStatus = status; RE.UI.renderSyncStatus(); }
@@ -189,8 +191,8 @@
   // 送る（6.7.6）
   function pushSync_(a, force) {
     return RE.Drive.putSync(a.driveFolderId, a.syncSavedAt, RE.Sync.makeData(a), force).then(function (res) {
-      if (res.ok) { a.syncSavedAt = res.savedAt; a.syncDirty = false; return RE.Db.saveArticle(a).then(function () { return setSyncStatus_(a, 'same'); }); }
-      if (res.code !== 'CONFLICT') return setSyncStatus_(a, 'pending');
+      if (res.ok) { a.syncSavedAt = res.savedAt; a.syncDirty = false; ST().syncError = ''; return RE.Db.saveArticle(a).then(function () { return setSyncStatus_(a, 'same'); }); }
+      if (res.code !== 'CONFLICT') { console.error('putSync', res); ST().syncError = errText_(res); return setSyncStatus_(a, 'pending'); }
       if (!res.sync) return pushSync_(a, true);
       if (!RE.Sync.isValidFor(res.sync, a)) return setSyncStatus_(a, 'mismatch');
       if (RE.Sync.sameContent(res.sync, a)) {
@@ -203,7 +205,7 @@
   // 読む（6.7.5）。結果は 'same' などの状態。自動で読み込んだときは 'applied'
   function pullSync_(a) {
     return RE.Drive.fetchSync(a.driveFolderId).then(function (res) {
-      if (!res.ok) return setSyncStatus_(a, a.syncDirty ? 'pending' : 'offline');
+      if (!res.ok) { console.error('fetchSync', res); ST().syncError = errText_(res); return setSyncStatus_(a, a.syncDirty ? 'pending' : 'offline'); }
       var r = res.sync;
       if (!r) return hasLocalData_(a) ? pushSync_(a, false) : setSyncStatus_(a, 'same');
       if (!RE.Sync.isValidFor(r, a)) return setSyncStatus_(a, 'mismatch');
@@ -667,7 +669,7 @@
   function driveErrorText_(res) {
     var c = res && res.code;
     if (c === 'BAD_KEY') return M.DRIVE_ERR_BAD_KEY;
-    if (c === 'NETWORK') return M.DRIVE_ERR_NETWORK;
+    if (c === 'NETWORK' || c === 'TIMEOUT') return M.DRIVE_ERR_NETWORK;
     if (c === 'NO_SETTINGS') return M.DRIVE_NEED_SETTINGS;
     if (c === 'MISSING_FILES') return fill(M.DRIVE_MISSING, { list: '本文・CSV・音声のどれか' });
     if (c === 'DUPLICATE_FILES') return fill(M.DRIVE_DUPLICATE, { list: '本文・CSV・音声のどれか' });
@@ -1132,6 +1134,66 @@
       ST().deadlineWeekday = w;
       try { localStorage.setItem(K.STORAGE_KEY_DEADLINE, String(w)); } catch (e) { /* 無視 */ }
       RE.UI.renderSettings();
+    },
+    // ☁ の行を押したとき：今すぐドライブとそろえ直す（仕様 6.7.9）
+    onSyncRetry: function () {
+      var st = ST(), a = st.article;
+      if (!a || !canSync_(a)) return;
+      st.syncError = ''; st.syncStatus = 'checking'; RE.UI.renderSyncStatus();
+      queueSync_(function () { return pullSync_(a); }).then(function (status) {
+        if (status === 'applied') {
+          var dev = st.syncAppliedFrom || K.SYNC_DEVICE_OTHER; st.syncAppliedFrom = null;
+          reopenAfterSync_(fill(M.SYNC_APPLIED, { device: dev }));
+        }
+      });
+    },
+    // 控えのファイルに書き出す（仕様 8.6.1）
+    onBackupExport: function () {
+      RE.Db.listArticles().then(function (list) {
+        if (!list.length) { RE.UI.showMessage('settings', M.BACKUP_EMPTY, true); return; }
+        var now = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+        var name = M.BACKUP_FILE_PREFIX + now.getFullYear() + p(now.getMonth() + 1) + p(now.getDate()) + '-' + p(now.getHours()) + p(now.getMinutes()) + '.json';
+        var data = { app: K.SYNC_APP, kind: 'backup', format: K.SYNC_FORMAT, device: RE.Sync.deviceName(), savedAt: Date.now(),
+          articles: list.map(function (a) {
+            return { title: a.title, driveFolderId: a.driveFolderId || '', blockIds: (a.sections || []).map(function (s) { return s.id; }),
+                     marked: !!a.marked, sections: RE.Sync.makeData(a).sections };
+          }) };
+        var blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = url; link.download = name; document.body.appendChild(link); link.click();
+        setTimeout(function () { URL.revokeObjectURL(url); link.remove(); }, 60000);
+        RE.UI.showMessage('settings', fill(M.BACKUP_EXPORTED, { name: name, n: list.length }));
+      });
+    },
+    // 控えのファイル（または keecolexico-sync.json）から読み込む（仕様 8.6.1）
+    onBackupImport: function (file) {
+      file.text().then(function (txt) {
+        var d = null;
+        try { d = JSON.parse(txt); } catch (e) { d = null; }
+        var entries = null;
+        if (d && d.app === K.SYNC_APP && d.kind === 'backup' && Array.isArray(d.articles)) entries = d.articles;
+        else if (d && d.app === K.SYNC_APP && Array.isArray(d.sections)) entries = [{ blockIds: d.sections.map(function (s) { return s && s.id; }), marked: d.marked, sections: d.sections }];
+        if (!entries) { RE.UI.showMessage('settings', M.BACKUP_BAD, true); return; }
+        return RE.Db.listArticles().then(function (list) {
+          var done = [], jobs = [];
+          list.forEach(function (a) {
+            var ids = (a.sections || []).map(function (s) { return s.id; }).join(',');
+            var e = entries.filter(function (x) { return Array.isArray(x.blockIds) && x.blockIds.join(',') === ids; })[0];
+            if (!e) return;
+            var data = { app: K.SYNC_APP, format: K.SYNC_FORMAT, marked: !!e.marked, sections: e.sections, savedAt: a.syncSavedAt || 0 };
+            if (!RE.Sync.isValidFor(data, a)) return;
+            RE.Sync.apply(a, data);
+            if (typeof a.syncSavedAt !== 'number') a.syncSavedAt = 0;
+            a.syncDirty = true;   // 次に開いたとき、ドライブへも送る
+            done.push(a.title);
+            jobs.push(RE.Db.saveArticle(a));
+          });
+          if (!done.length) { RE.UI.showMessage('settings', M.BACKUP_NO_MATCH, true); return; }
+          return Promise.all(jobs).then(function () {
+            RE.UI.showMessage('settings', fill(M.BACKUP_IMPORTED, { titles: done.join('・') }));
+          });
+        });
+      }).catch(function (e) { console.error(e); RE.UI.showMessage('settings', M.BACKUP_BAD, true); });
     },
     onGasSave: function (url, key) {
       RE.Drive.saveSettings(url, key);

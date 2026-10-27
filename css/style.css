@@ -243,7 +243,8 @@ button:disabled { cursor: default; opacity: 0.4; }
 .bar { flex: none; }
 
 /* 受け渡し（仕様 8.5・8.8） */
-.sync-status { font-size: 12px; color: var(--muted); margin: -2px 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sync-status { font: inherit; font-size: 12px; color: var(--muted); margin: -2px 0 2px; padding: 0; background: none; border: none; text-align: left; white-space: normal; }
+.sync-status.is-pending { color: var(--logo-teal); text-decoration: underline; }
 .sheet.sheet-center { align-items: center; z-index: 30; }
 .sync-box { padding: 18px 16px; display: flex; flex-direction: column; gap: 10px; border-radius: 18px; width: calc(100% - 32px); }
 .sync-title { font-weight: 700; font-size: 16px; }

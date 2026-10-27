@@ -138,6 +138,12 @@
     ['L', 'M', 'S'].forEach(function (f) { on('btn-font-' + f, function () { h.onFontSelect(f); }); });
     K.DEADLINE_OPTIONS.forEach(function (w) { on('btn-deadline-' + w, function () { h.onDeadlineSelect(w); }); });
     on('btn-gas-save', function () { h.onGasSave(el['input-gas-url'].value, el['input-gas-key'].value); });
+    on('txt-sync-status', function () { h.onSyncRetry(); });
+    on('btn-backup-export', function () { h.onBackupExport(); });
+    on('btn-backup-import', function () { el['input-backup'].click(); });
+    el['input-backup'].addEventListener('change', function () {
+      var f = this.files && this.files[0]; this.value = ''; if (f) h.onBackupImport(f);
+    });
     bindPressed_();
   }
 
@@ -453,9 +459,14 @@
   function renderSyncStatus() {
     var map = { checking: M.SYNC_STATUS_CHECKING, same: M.SYNC_STATUS_SAME, pending: M.SYNC_STATUS_PENDING,
                 offline: M.SYNC_STATUS_OFFLINE, mismatch: M.SYNC_STATUS_MISMATCH };
-    var t = map[RE.State.syncStatus] || '';
+    var st = RE.State, t = map[st.syncStatus] || '';
+    var retry = st.syncStatus === 'pending' || st.syncStatus === 'offline';
+    if (retry && st.syncError) t += ' ' + fill(M.SYNC_REASON, { reason: st.syncError });
+    if (retry) t += ' ' + M.SYNC_RETRY_HINT;
     el['txt-sync-status'].textContent = t;
     el['txt-sync-status'].hidden = !t;
+    el['txt-sync-status'].disabled = !retry;
+    el['txt-sync-status'].classList.toggle('is-pending', retry);
   }
 
   // 「月/日 時:分」
