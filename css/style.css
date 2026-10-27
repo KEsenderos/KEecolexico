@@ -112,6 +112,8 @@ button:disabled { cursor: default; opacity: 0.4; }
 .article-sub { font-size: 13px; color: var(--sub); margin-top: 4px; }
 .article-actions { display: flex; gap: 8px; padding: 0 14px 14px; }
 .article-actions .btn { flex: 1; }
+.article-link-row { padding: 0 14px 8px; display: flex; }
+.article-link-row .btn { flex: 1; color: var(--logo-teal); border-color: var(--logo-teal); }
 
 /* ドライブ */
 .drive-item {

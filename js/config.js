@@ -5,7 +5,7 @@
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '0.7.1',
+    APP_VERSION: '0.7.2',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -151,6 +151,13 @@
       DRIVE_MISSING: '足りないファイルがあります：{list}',
       DRIVE_DUPLICATE: '同じ種類のファイルが2つ以上あります：{list}（いらない方をフォルダから出してください）',
       DRIVE_IMPORTED: '取り込み済み',
+      DRIVE_ADD_TITLE: 'ドライブから追加',
+      DRIVE_LINK_BUTTON: '☁ ドライブと結び付ける',
+      DRIVE_LINK_TITLE: '結び付けるフォルダを選ぶ',
+      DRIVE_LINK_HINT: '「{title}」と同じ記事のフォルダを選んでください',
+      DRIVE_LINK_CHECKING: '本文を確認中…',
+      DRIVE_LINK_MISMATCH: 'このフォルダの本文は、節の並びが「{title}」と違うため結び付けられません',
+      DRIVE_LINKED: 'ドライブのフォルダと結び付けました',
       DRIVE_AUDIO_FAILED: '音声を受け取れませんでした。「音声だけiPhoneから選ぶ」で続けられます',
       DRIVE_ERR_BAD_KEY: '合言葉が違います。設定画面を確認してください',
       DRIVE_ERR_NETWORK: 'つながりませんでした。電波の良い所でもう一度押してください',

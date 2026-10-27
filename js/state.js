@@ -31,6 +31,7 @@
     RE.State.driveList = [];
     RE.State.driveBusy = false;
     RE.State.drivePending = null;       // 音声だけ受け取れなかったときの途中の入力
+    RE.State.driveLinkId = '';          // 結び付けるときの記事のID（空＝ふつうの取り込み。仕様 8.7.1）
     RE.State.partIndex = 0;             // 表示中の区間の番号（とばした節・見つからなかった語は -1）
     RE.State.markIndex = 0;             // 記録画面で次に記録する節の番号
     RE.State.markParts = [];            // 記録画面の各節の区間（undefined=未記録、[]=とばした、[{s,e}]。e は未定なら null）

@@ -51,6 +51,7 @@
       if (b.classList.contains('article-open')) h.onOpenArticle(id);
       else if (b.classList.contains('article-remark')) h.onRemark(id);
       else if (b.classList.contains('article-delete')) h.onDeleteArticle(id);
+      else if (b.classList.contains('article-link')) h.onLinkDrive(id);
     });
     // ドライブ
     on('btn-drive-back', function () { h.onDriveBack(); });
@@ -199,6 +200,11 @@
       open.appendChild(make_('div', 'article-title', a.title));
       open.appendChild(make_('div', 'article-sub', RE.Main.libraryProgressText(a)));
       card.appendChild(open);
+      if (!a.driveFolderId) {   // 予備の方法で追加した記事だけ（仕様 8.7.1）
+        var lr = make_('div', 'article-link-row');
+        var lk = make_('button', 'btn btn-small article-link', M.DRIVE_LINK_BUTTON); lk.type = 'button';
+        lr.appendChild(lk); card.appendChild(lr);
+      }
       var row = make_('div', 'article-actions');
       var re = make_('button', 'btn btn-small article-remark', '節の位置を直す'); re.type = 'button';
       var confirming = RE.State.pendingDeleteId === a.articleId;
@@ -216,7 +222,9 @@
     var busy = RE.State.driveBusy;
     el['btn-drive-back'].disabled = busy;
     el['btn-drive-reload'].disabled = busy;
-    el['btn-drive-pick-audio'].hidden = !RE.State.drivePending;
+    var linking = !!RE.State.driveLinkId;
+    el['txt-drive-title'].textContent = linking ? M.DRIVE_LINK_TITLE : M.DRIVE_ADD_TITLE;
+    el['btn-drive-pick-audio'].hidden = linking || !RE.State.drivePending;
     el['btn-drive-pick-audio'].disabled = busy;
     RE.State.driveList.forEach(function (it) {
       var b = make_('button', 'drive-item'); b.type = 'button';

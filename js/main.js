@@ -648,7 +648,9 @@
       if (!res.ok) { st.driveList = []; renderDrive_(); RE.UI.showMessage('drive', driveErrorText_(res), true); return; }
       st.driveList = res.articles || [];
       return renderDrive_().then(function () {
-        if (!st.driveList.length) RE.UI.showMessage('drive', M.DRIVE_EMPTY); else RE.UI.clearMessage('drive');
+        if (!st.driveList.length) RE.UI.showMessage('drive', M.DRIVE_EMPTY);
+        else if (st.driveLinkId) showLinkHint_();
+        else RE.UI.clearMessage('drive');
       });
     });
   }
@@ -670,6 +672,53 @@
     if (c === 'MISSING_FILES') return fill(M.DRIVE_MISSING, { list: '本文・CSV・音声のどれか' });
     if (c === 'DUPLICATE_FILES') return fill(M.DRIVE_DUPLICATE, { list: '本文・CSV・音声のどれか' });
     return fill(M.DRIVE_ERR_OTHER, { code: c || '?' });
+  }
+
+  // 結び付けるときの案内
+  function showLinkHint_() {
+    var st = ST(), a = (st.articles || []).filter(function (x) { return x.articleId === st.driveLinkId; })[0];
+    RE.UI.showMessage('drive', fill(M.DRIVE_LINK_HINT, { title: a ? a.title : '' }));
+  }
+
+  // 節の並び（id をつないだ文字）
+  function blockIds_(view) { return view.blocks.map(function (b) { return b.id; }).join(','); }
+
+  // 予備の方法で追加した記事を、ドライブの記事フォルダと結び付ける（仕様 8.7.1）
+  function linkDrive_(folderId) {
+    var st = ST(), id = st.driveLinkId;
+    var it = st.driveList.filter(function (x) { return x.folderId === folderId; })[0];
+    if (!it) return Promise.resolve();
+    var problem = driveProblemText(it);
+    if (problem) { RE.UI.showMessage('drive', problem, true); return Promise.resolve(); }
+    st.driveBusy = true; renderDrive_();
+    RE.UI.showMessage('drive', M.DRIVE_LINK_CHECKING);
+    return Promise.all([RE.Db.getArticle(id), RE.Drive.fetchTexts(folderId)]).then(function (rs) {
+      var a = rs[0], res = rs[1];
+      st.driveBusy = false;
+      if (!a) { renderDrive_(); RE.UI.showMessage('drive', M.LOAD_ERROR, true); return; }
+      if (!res.ok) { renderDrive_(); RE.UI.showMessage('drive', driveErrorText_(res), true); return; }
+      var dv = buildView_(res.article || '', res.csv || ''), lv = buildView_(a.articleText, a.csvText);
+      if (!parseOk_(dv.parsed) || blockIds_(dv) !== blockIds_(lv)) {
+        renderDrive_(); RE.UI.showMessage('drive', fill(M.DRIVE_LINK_MISMATCH, { title: a.title }), true); return;
+      }
+      syncSections_(a, lv);
+      a.driveFolderId = folderId;
+      a.syncSavedAt = 0;
+      a.syncDirty = hasLocalData_(a);
+      return RE.Db.saveArticle(a).then(function (ok) {
+        if (!ok) { renderDrive_(); RE.UI.showMessage('drive', M.SAVE_ERROR, true); return; }
+        st.driveLinkId = '';
+        RE.UI.showScreen('screen-library');
+        // 開く手順の中で、ドライブとそろえる（送る・読み込む・確認画面。仕様 6.7.5）
+        return openArticle_(id, 'auto').then(function () {
+          if (!st.syncRemote && !st.syncAppliedFrom) showSyncMsg_(M.DRIVE_LINKED);
+        });
+      });
+    }).catch(function (e) {
+      console.error(e);
+      st.driveBusy = false; renderDrive_();
+      RE.UI.showMessage('drive', fill(M.DRIVE_ERR_OTHER, { code: 'APP' }), true);
+    });
   }
 
   // 音声が手に入ったあと、長さを調べて保存する
@@ -722,6 +771,7 @@
     },
     onAddDrive: function () {
       ST().drivePending = null;
+      ST().driveLinkId = '';
       RE.UI.showScreen('screen-drive');
       RE.UI.clearMessage('drive');
       loadDriveList_();
@@ -734,11 +784,20 @@
     },
 
     // --- ドライブ ---
-    onDriveBack: function () { if (!ST().driveBusy) openLibrary(); },
+    onDriveBack: function () { if (!ST().driveBusy) { ST().driveLinkId = ''; openLibrary(); } },
+    onLinkDrive: function (id) {
+      var st = ST();
+      st.drivePending = null;
+      st.driveLinkId = id;
+      RE.UI.showScreen('screen-drive');
+      showLinkHint_();
+      loadDriveList_();
+    },
     onDriveReload: function () { if (!ST().driveBusy) { ST().drivePending = null; loadDriveList_(); } },
     onDriveImport: function (folderId) {
       var st = ST();
       if (st.driveBusy) return;
+      if (st.driveLinkId) { linkDrive_(folderId); return; }
       var it = st.driveList.filter(function (x) { return x.folderId === folderId; })[0];
       if (!it) return;
       var problem = driveProblemText(it);
