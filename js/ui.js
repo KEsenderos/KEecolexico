@@ -147,6 +147,7 @@
     K.DEADLINE_OPTIONS.forEach(function (w) { on('btn-deadline-' + w, function () { h.onDeadlineSelect(w); }); });
     on('btn-gas-save', function () { h.onGasSave(el['input-gas-url'].value, el['input-gas-key'].value); });
     on('txt-sync-status', function () { h.onSyncRetry(); });
+    on('banner-update', function () { h.onUpdateTap(); });
     on('btn-backup-export', function () { h.onBackupExport(); });
     on('btn-backup-import', function () { el['input-backup'].click(); });
     el['input-backup'].addEventListener('change', function () {
@@ -502,6 +503,13 @@
     });
   }
 
+  // 更新のお知らせ帯を出す（仕様 8.11）
+  function showUpdateBanner() {
+    el['txt-update-main'].textContent = C.MSG.UPDATE_AVAILABLE;
+    el['txt-update-note'].textContent = M.UPDATE_NOTE;
+    el['banner-update'].hidden = false;
+  }
+
   // 学習画面の受け渡しの状態（仕様 6.7.4）
   function renderSyncStatus() {
     var map = { checking: M.SYNC_STATUS_CHECKING, same: M.SYNC_STATUS_SAME, pending: M.SYNC_STATUS_PENDING,
@@ -572,6 +580,6 @@
     renderMark: renderMark, renderStudyTop: renderStudyTop, renderWordList: renderWordList,
     renderSectionSheet: renderSectionSheet, updatePosition: updatePosition, renderPlayButtons: renderPlayButtons,
     renderSettings: renderSettings, renderSyncStatus: renderSyncStatus, renderSyncSheet: renderSyncSheet,
-    renderTabs: renderTabs
+    renderTabs: renderTabs, showUpdateBanner: showUpdateBanner
   };
 })();

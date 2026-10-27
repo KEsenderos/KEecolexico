@@ -5,7 +5,7 @@
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '0.8',
+    APP_VERSION: '0.8.1',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -178,6 +178,7 @@
       SYNC_KEPT: 'この端末のものでドライブを上書きしました',
       SYNC_REASON: '理由：{reason}',
       SYNC_RETRY_HINT: '（ここを押すと、もう一度試します）',
+      UPDATE_NOTE: '記事・区切り・完了は消えません（再生は止まります）',
       BACKUP_FILE_PREFIX: 'keecolexico-backup-',
       BACKUP_EXPORTED: '書き出しました：{name}（{n}件の記事）',
       BACKUP_EMPTY: '書き出す記事がありません',

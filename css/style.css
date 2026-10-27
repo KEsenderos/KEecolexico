@@ -304,3 +304,14 @@ body.has-mini .app { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var
 .msg-mini.msg-on { margin-bottom: 6px; padding: 4px 8px; font-size: 13px; }
 .tools-title { font-size: 13px; color: var(--muted); margin-top: 4px; }
 body.kb-open .tab-bar, body.kb-open .mini-player { display: none; }
+
+/* ===== 更新のお知らせ（仕様 8.11） ===== */
+.update-banner {
+  position: sticky; top: var(--header-h); z-index: 9; width: 100%; margin: -4px 0 12px;
+  min-height: 56px; padding: 8px 14px; border: none; border-radius: 14px;
+  background: var(--accent-2); color: #12163A; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; text-align: center;
+}
+.update-main { font-size: 15px; font-weight: 800; }
+.update-note { font-size: 12px; font-weight: 600; }
+.update-banner.pressed { filter: brightness(0.85); }

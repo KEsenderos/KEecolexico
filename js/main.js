@@ -11,6 +11,8 @@
   var inputTimer_ = null;
   var deleteTimer_ = null;
   var lastRemote_ = 0;
+  var swReg_ = null;          // サービスワーカーの登録（更新の確認に使う）
+  var lastUpdateCheck_ = 0;   // 前回、新しい版を確かめた時刻
   var newArticleId_ = '';     // いま追加したばかりの記事（「先に記録して」を出さないため）
 
   // ===== 共通の計算 =====
@@ -345,9 +347,23 @@
   }
 
   // サービスワーカーを登録（失敗しても続ける）
+  // 更新のお知らせ（KEecoloopと同じ仕組み。仕様 8.11）
+  // 起動したときにサービスワーカーが働いていた場合だけ、新しい版に切り替わったら帯を出す（初めて入れたときは出さない）
   function registerServiceWorker_() {
     if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('./sw.js').catch(function () { /* 無視 */ });
+    var hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (hadController) RE.UI.showUpdateBanner();
+    });
+    navigator.serviceWorker.register('./sw.js').then(function (reg) {
+      swReg_ = reg; lastUpdateCheck_ = Date.now();
+    }).catch(function () { /* 無視 */ });
+  }
+  // 前面に戻ったとき、前回の確認から UPDATE_CHECK_MIN_MS（10分）以上なら新しい版を確かめる
+  function checkUpdate_() {
+    if (!swReg_ || Date.now() - lastUpdateCheck_ < C.UPDATE_CHECK_MIN_MS) return;
+    lastUpdateCheck_ = Date.now();
+    swReg_.update().catch(function () { /* 無視 */ });
   }
 
   // ロック画面・イヤホンの操作が連打されたら2回目を無視する
@@ -387,7 +403,7 @@
     openLibrary();
     setInterval(refreshPosition_, C.UI_REFRESH_MS);
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) { refreshPosition_(); RE.UI.renderPlayButtons(); }
+      if (!document.hidden) { refreshPosition_(); RE.UI.renderPlayButtons(); checkUpdate_(); }
     });
   }
 
@@ -786,6 +802,8 @@
         RE.UI.clearMessage('library');
       }, 3000);
     },
+    // 更新のお知らせ帯を押した：読み込み直して新しい版にする（自動では読み込み直さない）
+    onUpdateTap: function () { RE.Engine.stop(); location.reload(); },
     // 下のタブ（仕様 8.9）
     onTab: function (name) {
       var st = ST(), a = st.article, from = st.screen;
