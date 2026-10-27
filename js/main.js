@@ -232,7 +232,7 @@
 
   // 今の画面のメッセージ欄
   function showSyncMsg_(text) {
-    var map = { 'screen-study': 'study', 'screen-mark': 'mark', 'screen-library': 'library' };
+    var map = { 'screen-study': 'study', 'screen-words': 'study', 'screen-mark': 'mark', 'screen-library': 'library', 'screen-settings': 'settings' };
     var id = map[ST().screen]; if (id) RE.UI.showMessage(id, text);
   }
   // ドライブの中身に置き換えたあと、今の画面を開き直す（仕様 8.8）
@@ -242,7 +242,9 @@
       leaveMark_();
       if (a.marked && st.markFromSaved) openMark_(true); else if (a.marked) openStudyLast_(); else openMark_(false);
     }
-    else if (scr === 'screen-study') { if (a.marked) openStudyLast_(); else openMark_(false); }
+    else if (scr === 'screen-study' || scr === 'screen-words') {
+      if (a.marked) { openStudyLast_(); if (scr === 'screen-study') RE.UI.showScreen('screen-study'); } else openMark_(false);
+    }
     showSyncMsg_(text);
   }
 
@@ -337,7 +339,7 @@
   function refreshPosition_() {
     if (document.hidden) return;
     var scr = ST().screen;
-    if (scr !== 'screen-study' && scr !== 'screen-mark') return;
+    if (scr !== 'screen-study' && scr !== 'screen-words' && scr !== 'screen-mark') return;
     if (!ST().loadedArticleId) return;
     RE.UI.updatePosition(RE.Engine.getPositionSec());
   }
@@ -375,7 +377,7 @@
         if (ST().playerState === S.PLAYING) RE.Engine.pause(); else RE.Engine.stop();
       },
       onNext: function () {
-        if (!remoteAllowed_() || ST().screen !== 'screen-study') return;
+        if (!remoteAllowed_() || (ST().screen !== 'screen-study' && ST().screen !== 'screen-words')) return;
         handlers.onNextChunk();
       }
     });
@@ -452,9 +454,11 @@
     openStudy_(pick.blockId, pick.part);
   }
 
+  // 学習を開く（タブ「単語」。仕様 8.9）。記録画面のエンジンの設定が残っていれば元に戻す
   function openStudy_(blockId, part) {
     ST().sheetOpen = false;
-    RE.UI.showScreen('screen-study');
+    if (ST().engineMode === 'mark') leaveMark_();
+    RE.UI.showScreen('screen-words');
     RE.UI.clearMessage('study');
     goSection_(blockId, part);
   }
@@ -477,7 +481,8 @@
       RE.UI.showMessage('study', blockId === K.SECTION_NONE ? '' : M.NO_AUDIO_SECTION);
     }
     RE.UI.renderStudyTop();
-    if (!sameBlock) RE.UI.renderWordList(); else window.scrollTo(0, 0);
+    if (!sameBlock) RE.UI.renderWordList();
+    else { st.scrollPos['screen-words'] = 0; if (st.screen === 'screen-words') window.scrollTo(0, 0); }
   }
 
   // ===== 記録（仕様 8.4） =====
@@ -485,10 +490,8 @@
   // 記録画面を開く。fromSaved が true なら保存済みの区間を並べて始める
   function openMark_(fromSaved) {
     var st = ST(), a = st.article;
-    RE.Engine.stop();
-    RE.Engine.setRate(1);
-    RE.Engine.setGap(0);
-    RE.Engine.setSection(0, a.durationSec, 'A');
+    enterMarkEngine_();
+    st.markArticleId = a.articleId;
     st.markParts = a.sections.map(function (s) {
       return fromSaved ? s.parts.map(function (pt) { return { s: pt.s, e: pt.e }; }) : undefined;
     });
@@ -503,11 +506,30 @@
     RE.UI.updatePosition(0);
   }
 
+  // 記録画面のためにエンジンを設定する（倍速1・間0・音声全体。設定値は書き換えない）
+  function enterMarkEngine_() {
+    var a = ST().article;
+    RE.Engine.stop();
+    RE.Engine.setRate(1);
+    RE.Engine.setGap(0);
+    RE.Engine.setSection(0, a.durationSec, 'A');
+    ST().engineMode = 'mark';
+  }
+
+  // 途中の記録のまま、記録画面に戻る（タブを移って戻ったとき。仕様 8.9）
+  function resumeMark_() {
+    enterMarkEngine_();
+    RE.UI.showScreen('screen-mark');
+    RE.UI.renderMark();
+    RE.UI.updatePosition(0);
+  }
+
   // 記録画面を出るとき、再生の設定を元に戻す
   function leaveMark_() {
     RE.Engine.stop();
     RE.Engine.setGap(ST().gapSec);
     RE.Engine.setRate(ST().rate);
+    ST().engineMode = 'study';
   }
 
   // 記録画面の再生範囲を q 秒〜最後にする
@@ -764,9 +786,32 @@
         RE.UI.clearMessage('library');
       }, 3000);
     },
+    // 下のタブ（仕様 8.9）
+    onTab: function (name) {
+      var st = ST(), a = st.article, from = st.screen;
+      if (st.driveBusy) return;
+      if ((name === 'play' || name === 'words' || name === 'mark') && !a) return;
+      if (name === 'mark') {
+        if (from === 'screen-mark') return;
+        if (st.markArticleId === a.articleId) resumeMark_(); else openMark_(!!a.marked);
+        return;
+      }
+      if (from === 'screen-mark') leaveMark_();
+      if (name === 'library') { openLibrary(); return; }
+      if (name === 'settings') { handlers.onOpenSettings(); return; }
+      // 再生・単語
+      if (!a.marked) {
+        if (st.markArticleId === a.articleId) resumeMark_(); else openMark_(false);
+        RE.UI.showMessage('mark', M.NEED_MARK);
+        return;
+      }
+      var target = name === 'play' ? 'screen-study' : 'screen-words';
+      if (!st.blockId) { openStudyLast_(); RE.UI.showScreen(target); return; }
+      RE.UI.showScreen(target);
+      if (from === 'screen-mark' && currentRange()) applyRange_(false);
+      RE.UI.renderStudyTop();
+    },
     onOpenSettings: function () {
-      var st = ST();
-      if (st.screen !== 'screen-settings') st.prevScreen = st.screen;
       RE.UI.showScreen('screen-settings');
       RE.UI.clearMessage('settings');
       RE.UI.renderSettings();
@@ -871,7 +916,13 @@
     },
 
     // --- 記録 ---
-    onMarkBack: function () { leaveMark_(); openLibrary(); },
+    // やめる：途中の記録を捨てる。記録済みの記事なら単語タブ、まだなら記事一覧へ
+    onMarkBack: function () {
+      var a = ST().article;
+      ST().markArticleId = '';
+      leaveMark_();
+      if (a && a.marked) openStudyLast_(); else openLibrary();
+    },
     onMarkPlay: function () {
       if (RE.Engine.getState() === S.PLAYING) RE.Engine.pause(); else RE.Engine.play();
     },
@@ -979,14 +1030,13 @@
         sec.parts = ps.filter(function (pt) { return pt.e > pt.s; }).map(function (pt) { return { s: pt.s, e: pt.e }; });
       });
       a.marked = true;
+      st.markArticleId = '';
       markChanged_();
       leaveMark_();
       openStudyLast_();
     },
 
     // --- 学習 ---
-    onStudyBack: function () { RE.Engine.stop(); openLibrary(); },
-    onToggleTools: function () { ST().toolsOpen = !ST().toolsOpen; RE.UI.renderStudyTop(); },
     onSectionGo: function (blockId, part) { RE.UI.clearMessage('study'); goSection_(blockId, part); },
     onSectionPrev: function () {
       var nav = navList(), i = navIndex();
@@ -1118,12 +1168,6 @@
     },
 
     // --- 設定 ---
-    onSettingsBack: function () {
-      var prev = ST().prevScreen;
-      if (prev === 'screen-study' && ST().article) { RE.UI.showScreen('screen-study'); RE.UI.renderStudyTop(); }
-      else if (prev === 'screen-drive') { RE.UI.showScreen('screen-drive'); loadDriveList_(); }
-      else openLibrary();
-    },
     onFontSelect: function (f) {
       ST().fontSize = f;
       try { localStorage.setItem(K.STORAGE_KEY_FONT, f); } catch (e) { /* 無視 */ }

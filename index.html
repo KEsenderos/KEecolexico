@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0C1016">
+<meta name="theme-color" content="#0A0E18">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="KEecolexico">
@@ -24,7 +24,6 @@
       <img id="img-app-logo" class="app-logo" src="icons/icon-192.png" alt="" width="30" height="30">
       <div class="app-wordmark" aria-label="KEecolexico"><span class="wm-ke">KE</span><span class="wm-eco">eco</span><span class="wm-lex">lexico</span></div>
     </div>
-    <button id="btn-open-settings" class="icon-btn" type="button" aria-label="設定">⚙</button>
   </header>
 
   <!-- ===== 記事一覧 ===== -->
@@ -113,9 +112,7 @@
   <section id="screen-study" class="screen" hidden>
     <div id="study-top" class="study-top">
       <div class="study-head">
-        <button id="btn-study-back" class="icon-btn" type="button" aria-label="記事一覧へ">◀</button>
         <div id="txt-study-title" class="study-title"></div>
-        <button id="btn-study-tools" class="icon-btn" type="button" aria-label="再生の設定">⚙</button>
       </div>
       <button id="txt-sync-status" class="sync-status" type="button" hidden></button>
       <div id="txt-progress" class="progress"></div>
@@ -194,8 +191,8 @@
         <button id="btn-rate-09" class="opt-btn rate-btn" type="button" data-rate="0.9">0.9</button>
         <button id="btn-rate-08" class="opt-btn rate-btn" type="button" data-rate="0.8">0.8</button>
       </div>
-      <button id="btn-complete" class="btn btn-complete" type="button">この節を完了</button>
-      <div id="panel-tools" class="tools" hidden>
+      <div class="tools-title">再生の設定</div>
+      <div id="panel-tools" class="tools">
         <div class="tool-row">
           <span class="tool-label">移動時間</span>
           <button id="btn-move-minus" class="btn btn-mini" type="button">−</button>
@@ -214,14 +211,22 @@
       </div>
       <div id="msg-study" class="msg msg-tight" role="status"></div>
     </div>
+  </section>
+
+  <!-- ===== 単語（タブ「単語」。仕様 8.10） ===== -->
+  <section id="screen-words" class="screen" hidden>
+    <div class="words-head">
+      <div id="txt-words-title" class="words-title"></div>
+      <div id="txt-words-progress" class="progress"></div>
+    </div>
     <div id="list-words" class="words"></div>
+    <button id="btn-complete" class="btn btn-complete" type="button">この節を完了</button>
   </section>
 
   <!-- ===== 設定 ===== -->
   <section id="screen-settings" class="screen" hidden>
     <header class="subbar">
-      <button id="btn-settings-back" class="btn btn-back" type="button">◀ 戻る</button>
-      <div class="subtitle">設定</div>
+      <div class="subtitle subtitle-large">設定</div>
     </header>
     <div class="card">
       <div class="step">文字サイズ</div>
@@ -265,6 +270,38 @@
     <div id="list-sections" class="sheet-list"></div>
   </div>
 </div>
+
+<!-- ===== 小さな再生バー（単語タブのときだけ。仕様 8.10） ===== -->
+<div id="mini-player" class="mini-player" hidden>
+  <div class="mini-bar"><div id="bar-mini-fill" class="bar-fill"></div></div>
+  <div id="msg-words" class="msg msg-mini" role="status"></div>
+  <div class="mini-row">
+    <button id="btn-mini-prev" class="mini-btn" type="button" aria-label="前の区間">‹<small>前</small></button>
+    <button id="btn-mini-sec" class="mini-sec" type="button" aria-label="節を選ぶ"><span id="txt-mini-label" class="mini-label"></span><span id="txt-mini-range" class="mini-range"></span></button>
+    <button id="btn-mini-play" class="mini-play" type="button" aria-label="再生">▶</button>
+    <button id="btn-mini-next-chunk" class="mini-move" type="button">区間移動<small id="txt-mini-step">＋4秒</small></button>
+    <button id="btn-mini-next" class="mini-btn" type="button" aria-label="次の区間">›<small>次</small></button>
+  </div>
+</div>
+
+<!-- ===== 下のタブ（仕様 8.9） ===== -->
+<nav id="tab-bar" class="tab-bar" aria-label="画面の切り替え">
+  <button id="tab-library" class="tab" type="button" data-tab="library">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C4 4.7 4.7 4 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M13 4h5.5c.8 0 1.5.7 1.5 1.5v13c0 .8-.7 1.5-1.5 1.5H13z"/></svg><span>記事</span>
+  </button>
+  <button id="tab-play" class="tab" type="button" data-tab="play">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.5-3.5z" class="fill"/></svg><span>再生</span>
+  </button>
+  <button id="tab-words" class="tab" type="button" data-tab="words">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 10.5h14M5 15h9M5 19.5h6"/></svg><span>単語</span>
+  </button>
+  <button id="tab-mark" class="tab" type="button" data-tab="mark">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h3M17 12h3M10 12h4"/><path d="M8.5 6v12M15.5 6v12"/></svg><span>区切り</span>
+  </button>
+  <button id="tab-settings" class="tab" type="button" data-tab="settings">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/></svg><span>設定</span>
+  </button>
+</nav>
 
 <!-- ===== 受け渡しの確認（仕様 8.8） ===== -->
 <div id="sheet-sync" class="sheet sheet-center" hidden>

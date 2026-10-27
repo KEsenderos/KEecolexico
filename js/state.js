@@ -14,7 +14,6 @@
     var font = read_(K.STORAGE_KEY_FONT);
     var dl = parseInt(read_(K.STORAGE_KEY_DEADLINE), 10);
     RE.State.screen = 'screen-library';
-    RE.State.prevScreen = 'screen-library';
     RE.State.article = null;
     RE.State.view = null;
     RE.State.blockId = '';
@@ -42,7 +41,9 @@
     RE.State.articles = [];             // 記事一覧
     RE.State.loadedArticleId = '';      // エンジンに音声を読み込んである記事
     RE.State.pendingDeleteId = '';      // 削除の1回目を押した記事
-    RE.State.toolsOpen = false;         // 再生の設定の開閉
+    RE.State.engineMode = 'study';      // エンジンの使い方：'study'（学習の範囲）／'mark'（記録画面。倍速1・間0・全体）
+    RE.State.markArticleId = '';        // 記録画面の途中の記録がある記事（タブを移っても残す。仕様 8.9）
+    RE.State.scrollPos = {};            // 画面ごとのスクロールの位置
     RE.State.sheetOpen = false;         // 節の一覧の開閉
     RE.State.syncStatus = 'off';        // 受け渡しの状態（仕様 6.7.4）
     RE.State.syncRemote = null;         // 確認画面に出しているドライブの中身

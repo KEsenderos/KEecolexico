@@ -7,7 +7,11 @@
   var S = C.PLAYER_STATE;
   var el = {};
   var h = null;
-  var SCREENS = ['screen-library', 'screen-drive', 'screen-import', 'screen-mark', 'screen-study', 'screen-settings'];
+  var SCREENS = ['screen-library', 'screen-drive', 'screen-import', 'screen-mark', 'screen-study', 'screen-words', 'screen-settings'];
+  // 画面 → 下のタブ（仕様 8.9）
+  var TAB_OF = { 'screen-library': 'library', 'screen-drive': 'library', 'screen-import': 'library',
+                 'screen-study': 'play', 'screen-words': 'words', 'screen-mark': 'mark', 'screen-settings': 'settings' };
+  var TABS = ['library', 'play', 'words', 'mark', 'settings'];
 
   // id から要素を取る
   function $(id) { return document.getElementById(id); }
@@ -41,7 +45,14 @@
   function bindEvents_() {
     var on = function (id, fn) { el[id].addEventListener('click', fn); };
     // 一覧
-    on('btn-open-settings', function () { h.onOpenSettings(); });
+    // 下のタブ
+    TABS.forEach(function (name) { on('tab-' + name, function () { commitInput_(); h.onTab(name); }); });
+    // 単語タブの再生バー
+    on('btn-mini-prev', function () { h.onSectionPrev(); });
+    on('btn-mini-next', function () { h.onSectionNext(); });
+    on('btn-mini-sec', function () { renderSectionSheet(true); });
+    on('btn-mini-play', function () { h.onPlayPause(); });
+    on('btn-mini-next-chunk', function () { h.onNextChunk(); });
     on('btn-add-drive', function () { h.onAddDrive(); });
     on('btn-add-article', function () { h.onAddArticle(); });
     el['list-articles'].addEventListener('click', function (ev) {
@@ -95,8 +106,6 @@
       if (which) h.onMarkAdjust(bi, pi, which, dir * K.ADJUST_SEC);
     });
     // 学習
-    on('btn-study-back', function () { h.onStudyBack(); });
-    on('btn-study-tools', function () { h.onToggleTools(); });
     on('btn-sec-prev', function () { h.onSectionPrev(); });
     on('btn-sec-next', function () { h.onSectionNext(); });
     on('btn-sec-label', function () { renderSectionSheet(true); });
@@ -134,7 +143,6 @@
       b.addEventListener('click', function () { commitInput_(); h.onRateSelect(Number(b.getAttribute('data-rate'))); });
     });
     // 設定
-    on('btn-settings-back', function () { h.onSettingsBack(); });
     ['L', 'M', 'S'].forEach(function (f) { on('btn-font-' + f, function () { h.onFontSelect(f); }); });
     K.DEADLINE_OPTIONS.forEach(function (w) { on('btn-deadline-' + w, function () { h.onDeadlineSelect(w); }); });
     on('btn-gas-save', function () { h.onGasSave(el['input-gas-url'].value, el['input-gas-key'].value); });
@@ -145,6 +153,11 @@
       var f = this.files && this.files[0]; this.value = ''; if (f) h.onBackupImport(f);
     });
     bindPressed_();
+    // 文字を入力している間は、下のタブと再生バーを隠す（キーボードと重ならないように）
+    document.addEventListener('focusin', function (ev) {
+      if (ev.target.matches('input, textarea')) document.body.classList.add('kb-open');
+    });
+    document.addEventListener('focusout', function () { document.body.classList.remove('kb-open'); });
   }
 
   // ボタンを押した瞬間に色を変える（iPhoneは :active だけでは色が変わりにくいため）
@@ -171,20 +184,41 @@
   }
 
   // 画面切替
+  // 画面切替。画面ごとにスクロールの位置を覚えておき、戻ったときに元の位置へ（仕様 8.9）
   function showScreen(id) {
+    var st = RE.State;
+    if (st.screen && st.screen !== id) st.scrollPos[st.screen] = window.scrollY;
     SCREENS.forEach(function (s) { el[s].hidden = s !== id; });
-    if (id !== 'screen-study') renderSectionSheet(false);
-    el['btn-open-settings'].hidden = id !== 'screen-library';   // 設定ボタンは記事一覧のときだけ
-    RE.State.screen = id;
-    window.scrollTo(0, 0);
+    if (id !== 'screen-study' && id !== 'screen-words') renderSectionSheet(false);
+    var words = id === 'screen-words';
+    el['mini-player'].hidden = !words;
+    document.body.classList.toggle('has-mini', words);
+    var changed = st.screen !== id;
+    st.screen = id;
+    renderTabs();
+    if (changed) window.scrollTo(0, st.scrollPos[id] || 0);
+  }
+
+  // 下のタブ：今のタブの印と、記事を開いていないときに押せないタブ
+  function renderTabs() {
+    var st = RE.State, cur = TAB_OF[st.screen];
+    TABS.forEach(function (name) {
+      var b = el['tab-' + name];
+      if (name === cur) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      b.disabled = (name === 'play' || name === 'words' || name === 'mark') && !st.article;
+    });
   }
 
   // メッセージ（screenId は 'library' 'drive' 'import' 'mark' 'study' 'settings'）
+  // 'study' のメッセージは、単語タブの再生バーにも同じものを出す
   function showMessage(screenId, text, isError) {
-    var m = el['msg-' + screenId]; if (!m) return;
-    m.textContent = text || '';
-    m.classList.toggle('msg-error', !!isError);
-    m.classList.toggle('msg-on', !!text);
+    var ids = screenId === 'study' ? ['msg-study', 'msg-words'] : ['msg-' + screenId];
+    ids.forEach(function (id) {
+      var m = el[id]; if (!m) return;
+      m.textContent = text || '';
+      m.classList.toggle('msg-error', !!isError);
+      m.classList.toggle('msg-on', !!text);
+    });
   }
   function clearMessage(screenId) { showMessage(screenId, '', false); }
 
@@ -373,9 +407,21 @@
     var playing = st.playerState === S.PLAYING;
     el['btn-play'].textContent = playing ? '❚❚' : '▶';
     el['btn-play'].setAttribute('aria-label', playing ? '一時停止' : '再生');
+    // 単語タブ（見出し・再生バー。仕様 8.10）
+    el['txt-words-title'].textContent = label;
+    el['txt-words-progress'].textContent = el['txt-progress'].textContent;
+    var sec2 = cur ? RE.Main.sectionEntry(cur.blockId) : null;
+    el['txt-mini-label'].textContent = (cur ? cur.label : '') + (sec2 && sec2.done ? ' ✓' : '');
+    el['txt-mini-range'].textContent = r ? RE.Utils.formatTime(r.s) + '〜' + RE.Utils.formatTime(r.e) : '--:--〜--:--';
+    el['btn-mini-prev'].disabled = idx <= 0;
+    el['btn-mini-next'].disabled = idx >= nav.length - 1;
+    el['btn-mini-play'].disabled = !playable;
+    el['btn-mini-next-chunk'].disabled = !playable;
+    el['btn-mini-play'].textContent = playing ? '❚❚' : '▶';
+    el['btn-mini-play'].setAttribute('aria-label', playing ? '一時停止' : '再生');
+    el['txt-mini-step'].textContent = '＋' + RE.Utils.calcStepSec(st.moveSec) + '秒';
+    if (!r) el['bar-mini-fill'].style.width = '0%';
     // 再生の設定
-    el['panel-tools'].hidden = !st.toolsOpen;
-    el['btn-study-tools'].classList.toggle('is-on', st.toolsOpen);
     el['input-move'].value = st.moveSec;
     document.querySelectorAll('.gap-btn').forEach(function (b) {
       b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-gap')) === st.gapSec));
@@ -433,7 +479,8 @@
         g.items.forEach(function (hit) { box.appendChild(renderWord_(hit.item)); });
       });
     }
-    window.scrollTo(0, 0);
+    st.scrollPos['screen-words'] = 0;
+    if (st.screen === 'screen-words') window.scrollTo(0, 0);
   }
 
   // 節の一覧の開閉
@@ -491,10 +538,11 @@
 
   // 位置の表示（学習画面はバーの塗り、記録画面は時刻）
   function updatePosition(sec) {
-    if (RE.State.screen === 'screen-study') {
+    var scr = RE.State.screen;
+    if (scr === 'screen-study' || scr === 'screen-words') {
       var r = RE.Main.currentRange();
       var f = r && r.e > r.s ? Math.min(1, Math.max(0, (sec - r.s) / (r.e - r.s))) : 0;
-      el['bar-range-fill'].style.width = (f * 100).toFixed(1) + '%';
+      el[scr === 'screen-study' ? 'bar-range-fill' : 'bar-mini-fill'].style.width = (f * 100).toFixed(1) + '%';
     } else if (RE.State.screen === 'screen-mark') {
       var dur = RE.State.article ? RE.State.article.durationSec : 0;
       el['txt-mark-pos'].textContent = RE.Utils.formatTime(sec) + ' / ' + RE.Utils.formatTime(dur);
@@ -504,7 +552,7 @@
   // 再生ボタンの見た目だけ更新（エンジンの状態が変わったとき）
   function renderPlayButtons() {
     if (RE.State.screen === 'screen-mark') renderMarkPlay_();
-    else if (RE.State.screen === 'screen-study') renderStudyTop();
+    else if (RE.State.screen === 'screen-study' || RE.State.screen === 'screen-words') renderStudyTop();
   }
 
   // ===== 設定 =====
@@ -523,6 +571,7 @@
     renderImport: renderImport, setImportSummary: setImportSummary, setImportTitle: setImportTitle, setArticleText: setArticleText,
     renderMark: renderMark, renderStudyTop: renderStudyTop, renderWordList: renderWordList,
     renderSectionSheet: renderSectionSheet, updatePosition: updatePosition, renderPlayButtons: renderPlayButtons,
-    renderSettings: renderSettings, renderSyncStatus: renderSyncStatus, renderSyncSheet: renderSyncSheet
+    renderSettings: renderSettings, renderSyncStatus: renderSyncStatus, renderSyncSheet: renderSyncSheet,
+    renderTabs: renderTabs
   };
 })();
