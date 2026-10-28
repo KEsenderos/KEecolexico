@@ -1,4 +1,5 @@
 /* js/state.js — アプリの状態をまとめて持つ（RE.State） */
+/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -19,7 +20,7 @@
     RE.State.blockId = '';
     RE.State.rangeStart = 0;            // 繰り返す範囲の開始（音声全体の時刻）
     RE.State.rangeEnd = 0;              // 繰り返す範囲の終了
-    RE.State.rangeEditOpen = false;     // 時刻の▲▼の開閉
+    RE.State.memoSid = '';              // 区間保存で結び付ける文の番号（仕様 6.8.4）
     RE.State.moveSec = RE.Utils.loadMoveSec();
     RE.State.gapSec = RE.Utils.loadGapSec();
     RE.State.rate = C.RATE_DEFAULT;

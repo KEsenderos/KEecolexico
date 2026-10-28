@@ -1,4 +1,5 @@
 /* js/main.js — 起動と各操作のまとめ役（RE.Main）。画面の描画は RE.UI、再生は RE.Engine、保存は RE.Db に任せる */
+/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -165,15 +166,65 @@
   // 受け渡しの対象か
   function canSync_(a) { return !!(a && a.driveFolderId && RE.Drive.isReady()); }
   // 区切り・完了がこの端末にあるか
-  function hasLocalData_(a) { return !!a.marked || a.sections.some(function (s) { return !!s.done; }); }
+  function hasLocalData_(a) {
+    return !!a.marked || a.sections.some(function (s) { return !!s.done; }) || Object.keys(a.memos || {}).length > 0;
+  }
   // v0.6 以前の記事に項目を足す。足したら true
   function migrateSync_(a) {
+    if (!a.memos || typeof a.memos !== 'object') a.memos = {};   // 区間メモ（仕様 6.8.2）
     if (typeof a.syncSavedAt === 'number') return false;
     a.syncSavedAt = 0; a.syncDirty = hasLocalData_(a);
     return true;
   }
   // 通信を順番に1つずつ行う
   function queueSync_(fn) { syncChain_ = syncChain_.then(fn).catch(function (e) { console.error(e); return 'pending'; }); return syncChain_; }
+  // ===== 文ごとの区間メモ（仕様 6.8） =====
+  var memoSeq_ = 0;
+
+  // 区間メモの id（時刻＋連番＋乱数）
+  function makeMemoId_() {
+    memoSeq_ += 1;
+    return 'm' + Date.now().toString(36) + memoSeq_.toString(36) + Math.random().toString(36).slice(2, 4);
+  }
+  // 節の文の一覧 [{sid, text}]
+  function sectionSentences_(blockId) {
+    var v = ST().view, b = v ? v.blocks.filter(function (x) { return x.id === blockId; })[0] : null;
+    if (!b) return [];
+    return b.units.filter(function (u) { return u.kind !== 'skipped'; }).map(function (u) { return { sid: u.sid, text: u.text }; });
+  }
+  // その節の区間メモ（無ければ空の配列）
+  function memosOf_(blockId) { var a = ST().article; return (a && a.memos && a.memos[blockId]) || []; }
+  // 区間メモを文の並びに並べ直す
+  function sortMemos_(blockId, list) {
+    var order = {}; sectionSentences_(blockId).forEach(function (x, i) { order[x.sid] = i; });
+    return list.slice().sort(function (p, q) { return (order[p.sid] - order[q.sid]) || (p.s - q.s); });
+  }
+  // 「この文」の初期値：最後に保存した文の次から、区間メモが無い最初の文
+  function defaultMemoSid_() {
+    var st = ST(), list = sectionSentences_(st.blockId), memos = memosOf_(st.blockId);
+    if (!list.length) return '';
+    var has = {}; memos.forEach(function (m) { has[m.sid] = m; });
+    var last = memos.slice().sort(function (p, q) { return q.savedAt - p.savedAt; })[0];
+    var from = 0;
+    if (last) list.forEach(function (x, i) { if (x.sid === last.sid) from = i + 1; });
+    for (var k = 0; k < list.length; k++) {
+      var x = list[(from + k) % list.length];
+      if (!has[x.sid]) return x.sid;
+    }
+    var cur = memos.filter(function (m) { return isCurrentMemo_(m); })[0];
+    return cur ? cur.sid : list[0].sid;
+  }
+  // 今の範囲と同じ区間メモか
+  function isCurrentMemo_(m) {
+    var st = ST();
+    return m.part === st.partIndex && m.s === st.rangeStart && m.e === st.rangeEnd;
+  }
+  // 区間メモを変えたあと、画面を描き直す（単語一覧はスクロールの位置を保つ）
+  function memoChanged_() {
+    RE.UI.renderStudyTop();
+    RE.UI.renderWordList(true);
+  }
+
   // 失敗の理由の文（GASが返した記号と説明）
   function errText_(res) { return (res && res.code ? res.code : '?') + (res && res.message ? ' ' + res.message : ''); }
   // 状態を表示に反映
@@ -218,7 +269,9 @@
         return RE.Db.saveArticle(a).then(function () {
           setSyncStatus_(a, 'same');
           if (changed) ST().syncAppliedFrom = r.device || RE.Config.KX.SYNC_DEVICE_OTHER;
-          return changed ? 'applied' : 'same';
+          var res = changed ? 'applied' : 'same';
+          // 古い版のファイルで、端末の区間メモを残したとき（仕様 6.8.6）は、続けて送る
+          return a.syncDirty ? pushSync_(a, false).then(function () { return res; }) : res;
         });
       }
       return openConflict_(a, r);
@@ -496,6 +549,7 @@
       RE.Engine.stop();
       RE.UI.showMessage('study', blockId === K.SECTION_NONE ? '' : M.NO_AUDIO_SECTION);
     }
+    st.memoSid = defaultMemoSid_();
     RE.UI.renderStudyTop();
     if (!sameBlock) RE.UI.renderWordList();
     else { st.scrollPos['screen-words'] = 0; if (st.screen === 'screen-words') window.scrollTo(0, 0); }
@@ -638,7 +692,7 @@
       articleText: draft.text, csvText: draft.csvText,
       audioName: draft.file.name || '', durationSec: draft.durationSec || 0,
       sections: view.blocks.map(function (b) { return { id: b.id, parts: [], done: null }; }),
-      marked: false, lastBlockId: '', lastPart: 0, driveFolderId: draft.driveFolderId || '',
+      marked: false, lastBlockId: '', lastPart: 0, driveFolderId: draft.driveFolderId || '', memos: {},
       syncSavedAt: 0, syncDirty: false
     };
     // ドライブに受け渡しファイルがあれば、区切り・完了も一緒に入れる（仕様 8.7-3）
@@ -1064,7 +1118,49 @@
       var nav = navList(), i = navIndex();
       if (i < nav.length - 1) handlers.onSectionGo(nav[i + 1].blockId, nav[i + 1].part);
     },
-    onToggleRangeEdit: function () { ST().rangeEditOpen = !ST().rangeEditOpen; RE.UI.renderStudyTop(); },
+    // --- 区間メモ（仕様 6.8.5） ---
+    onMemoSidChange: function (sid) { ST().memoSid = sid; RE.UI.renderStudyTop(); },
+    onMemoSave: function () {
+      var st = ST(), a = st.article, r = currentRange(), sec = partRange_();
+      if (!a || !r || !sec || !st.memoSid) return;
+      var sid = st.memoSid, list = memosOf_(st.blockId).slice();
+      var old = list.filter(function (m) { return m.sid === sid; })[0], msg;
+      if (old) {
+        old.part = st.partIndex; old.s = r.s; old.e = r.e; old.savedAt = Date.now();
+        msg = M.MEMO_REPLACED;
+      } else {
+        if (list.length >= K.MEMO_MAX_PER_SECTION) { RE.UI.showMessage('study', M.MEMO_FULL, true); return; }
+        list.push({ id: makeMemoId_(), sid: sid, part: st.partIndex, s: r.s, e: r.e, savedAt: Date.now() });
+        msg = M.MEMO_SAVED;
+      }
+      a.memos = a.memos || {};
+      a.memos[st.blockId] = sortMemos_(st.blockId, list);
+      markChanged_();
+      // 次の範囲を、保存した文の終わりから始める（再生中なら続けて再生）
+      if (r.e < sec.end) setRange_(r.e, Math.min(r.e + C.END_DEFAULT_SEC, sec.end), true, false);
+      st.memoSid = defaultMemoSid_();
+      RE.UI.showMessage('study', fill(msg, { sid: sid }));
+      memoChanged_();
+    },
+    onMemoTap: function (blockId, id) {
+      var st = ST(), m = memosOf_(blockId).filter(function (x) { return x.id === id; })[0];
+      if (!m) return;
+      var sec = sectionRange_(blockId, m.part);
+      if (!sec || m.s < sec.start || m.e > sec.end) { RE.UI.showMessage('study', M.MEMO_OUT_OF_RANGE, true); return; }
+      if (st.blockId !== blockId || st.partIndex !== m.part) goSection_(blockId, m.part);
+      RE.UI.clearMessage('study');
+      setRange_(m.s, m.e, false, false);
+      RE.Engine.playFromStart();   // 状態に関係なく、その文の頭から
+      st.memoSid = m.sid;
+      memoChanged_();
+    },
+    onMemoDelete: function (blockId, id) {
+      var a = ST().article; if (!a || !a.memos || !a.memos[blockId]) return;
+      a.memos[blockId] = a.memos[blockId].filter(function (m) { return m.id !== id; });
+      if (!a.memos[blockId].length) delete a.memos[blockId];
+      markChanged_();
+      memoChanged_();
+    },
     onStartStep: function (delta) {
       var st = ST(), sec = partRange_(), r = currentRange(); if (!sec || !r) return;
       var n = RE.Utils.clamp(r.s + delta, sec.start, Math.max(Math.ceil(r.e) - 1, sec.start));
@@ -1218,7 +1314,7 @@
         var data = { app: K.SYNC_APP, kind: 'backup', format: K.SYNC_FORMAT, device: RE.Sync.deviceName(), savedAt: Date.now(),
           articles: list.map(function (a) {
             return { title: a.title, driveFolderId: a.driveFolderId || '', blockIds: (a.sections || []).map(function (s) { return s.id; }),
-                     marked: !!a.marked, sections: RE.Sync.makeData(a).sections };
+                     marked: !!a.marked, sections: RE.Sync.makeData(a).sections, memos: RE.Sync.copyMemos(a.memos) };
           }) };
         var blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
         var url = URL.createObjectURL(blob), link = document.createElement('a');
@@ -1234,7 +1330,7 @@
         try { d = JSON.parse(txt); } catch (e) { d = null; }
         var entries = null;
         if (d && d.app === K.SYNC_APP && d.kind === 'backup' && Array.isArray(d.articles)) entries = d.articles;
-        else if (d && d.app === K.SYNC_APP && Array.isArray(d.sections)) entries = [{ blockIds: d.sections.map(function (s) { return s && s.id; }), marked: d.marked, sections: d.sections }];
+        else if (d && d.app === K.SYNC_APP && Array.isArray(d.sections)) entries = [{ blockIds: d.sections.map(function (s) { return s && s.id; }), marked: d.marked, sections: d.sections, memos: d.memos }];
         if (!entries) { RE.UI.showMessage('settings', M.BACKUP_BAD, true); return; }
         return RE.Db.listArticles().then(function (list) {
           var done = [], jobs = [];
@@ -1242,7 +1338,7 @@
             var ids = (a.sections || []).map(function (s) { return s.id; }).join(',');
             var e = entries.filter(function (x) { return Array.isArray(x.blockIds) && x.blockIds.join(',') === ids; })[0];
             if (!e) return;
-            var data = { app: K.SYNC_APP, format: K.SYNC_FORMAT, marked: !!e.marked, sections: e.sections, savedAt: a.syncSavedAt || 0 };
+            var data = { app: K.SYNC_APP, format: K.SYNC_FORMAT, marked: !!e.marked, sections: e.sections, memos: e.memos, savedAt: a.syncSavedAt || 0 };
             if (!RE.Sync.isValidFor(data, a)) return;
             RE.Sync.apply(a, data);
             if (typeof a.syncSavedAt !== 'number') a.syncSavedAt = 0;
@@ -1274,7 +1370,8 @@
   RE.Main = {
     start: start, handlers: handlers, buildView_: buildView_,
     navList: navList, navIndex: navIndex, partLabel: partLabel_, markNeighbors: markNeighbors_, sectionEntry: sectionEntry, currentRange: currentRange,
-    studyProgressText: studyProgressText, libraryProgressText: libraryProgressText, driveProblemText: driveProblemText
+    studyProgressText: studyProgressText, libraryProgressText: libraryProgressText, driveProblemText: driveProblemText,
+    memosOf: memosOf_, sectionSentences: sectionSentences_, isCurrentMemo: isCurrentMemo_
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

@@ -1,4 +1,5 @@
 /* js/ui.js — 画面の描画とボタン操作の受け付け（RE.UI）。中身の判断は RE.Main が行う */
+/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -118,7 +119,19 @@
     });
     on('btn-sync-use-remote', function () { h.onSyncUseRemote(); });
     on('btn-sync-keep-local', function () { h.onSyncKeepLocal(); });
-    on('btn-range-edit', function () { h.onToggleRangeEdit(); });
+    // 区間メモ（仕様 6.8）
+    on('btn-memo-save', function () { commitInput_(); h.onMemoSave(); });
+    el['sel-memo-sid'].addEventListener('change', function () { h.onMemoSidChange(this.value); });
+    el['list-memos'].addEventListener('click', function (ev) {
+      var b = ev.target.closest('button'); if (!b) return;
+      var blk = b.getAttribute('data-block'), id = b.getAttribute('data-id');
+      if (b.classList.contains('memo-main')) h.onMemoTap(blk, id);
+      else if (b.classList.contains('memo-del')) h.onMemoDelete(blk, id);
+    });
+    el['list-words'].addEventListener('click', function (ev) {
+      var b = ev.target.closest('button.sid-sep'); if (!b) return;
+      h.onMemoTap(b.getAttribute('data-block'), b.getAttribute('data-id'));
+    });
     on('btn-mark-start', function () { h.onMarkRange('start'); });
     on('btn-mark-end-range', function () { h.onMarkRange('end'); });
     on('btn-all', function () { commitInput_(); h.onSelectAll(); });
@@ -396,10 +409,11 @@
     var r = RE.Main.currentRange();
     var playable = !!r;
     renderRange_(r);
-    ['btn-play', 'btn-stop', 'btn-all', 'btn-prev-chunk', 'btn-next-chunk', 'btn-mark-start', 'btn-mark-end-range', 'btn-range-edit'].forEach(function (id) {
+    ['btn-play', 'btn-stop', 'btn-all', 'btn-prev-chunk', 'btn-next-chunk', 'btn-mark-start', 'btn-mark-end-range'].forEach(function (id) {
       el[id].disabled = !playable;
     });
     el['txt-next-step'].textContent = '＋' + RE.Utils.calcStepSec(st.moveSec) + '秒';
+    renderMemos_(playable, cur);
     var isNone = !cur || cur.blockId === K.SECTION_NONE;
     var secE = cur ? RE.Main.sectionEntry(cur.blockId) : null;
     el['btn-complete'].disabled = isNone || !secE || !secE.parts.length;
@@ -437,9 +451,9 @@
   // 範囲の行・時刻の▲▼の表示（仕様 6.5・8.5）
   function renderRange_(r) {
     var st = RE.State, f = RE.Utils.formatTime;
-    el['btn-range-edit'].textContent = r ? f(r.s) + '〜' + f(r.e) : '--:--〜--:--';
-    el['btn-range-edit'].classList.toggle('is-on', !!st.rangeEditOpen);
-    el['panel-range'].hidden = !st.rangeEditOpen || !r;
+    el['txt-range'].textContent = r ? f(r.s) + '〜' + f(r.e) : '--:--〜--:--';
+    el['panel-range'].classList.toggle('is-off', !r);
+    document.querySelectorAll('.digit-btn').forEach(function (b) { b.disabled = !r; });
     if (!r) { el['bar-range-fill'].style.width = '0%'; return; }
     [['start', r.s], ['end', r.e]].forEach(function (x) {
       var d = RE.Utils.splitDigits(x[1]);
@@ -462,26 +476,88 @@
     if (item.context) w.appendChild(make_('div', 'word-context', item.context));
     return w;
   }
-  // 文番号の区切り
-  function renderSidSep_(sid) { return make_('div', 'sid-sep', '── ' + sid + ' ──'); }
+  // 文番号の区切り。区間メモがある文は、押すとその文をくり返すボタン（仕様 8.5）
+  function renderSidSep_(sid, memo) {
+    if (!memo) return make_('div', 'sid-sep', '── ' + sid + ' ──');
+    var f = RE.Utils.formatTime;
+    var b = make_('button', 'sid-sep has-memo', '── ' + sid + ' ▶ ' + f(memo.s) + '〜' + f(memo.e) + ' ──');
+    b.type = 'button';
+    b.setAttribute('data-block', RE.State.blockId);
+    b.setAttribute('data-id', memo.id);
+    b.setAttribute('aria-label', sid + ' の文をくり返す');
+    if (RE.Main.isCurrentMemo(memo)) b.setAttribute('aria-current', 'true');
+    return b;
+  }
 
-  // 単語一覧を作り直し、先頭へ戻す
-  function renderWordList() {
+  // 単語一覧を作り直す。keepScroll が true でなければ先頭へ戻す
+  function renderWordList(keepScroll) {
     var st = RE.State, box = el['list-words'];
     box.textContent = '';
     if (!st.view) return;
     if (st.blockId === K.SECTION_NONE) {
       st.view.unmatched.forEach(function (it) { box.appendChild(renderWord_(it)); });
     } else {
-      var groups = st.view.rows[st.blockId] || [];
-      if (!groups.length) box.appendChild(make_('div', 'empty', '（この節に新しい語はありません）'));
-      groups.forEach(function (g) {
-        box.appendChild(renderSidSep_(g.sid));
-        g.items.forEach(function (hit) { box.appendChild(renderWord_(hit.item)); });
-      });
+      var groups = st.view.rows[st.blockId] || [], gmap = {}, mmap = {}, used = {};
+      groups.forEach(function (g) { gmap[g.sid] = g; });
+      RE.Main.memosOf(st.blockId).forEach(function (m) { mmap[m.sid] = m; });
+      if (!groups.length && !Object.keys(mmap).length) box.appendChild(make_('div', 'empty', '（この節に新しい語はありません）'));
+      var put = function (sid) {
+        var g = gmap[sid], m = mmap[sid];
+        if (used[sid] || (!g && !m)) return;
+        used[sid] = true;
+        box.appendChild(renderSidSep_(sid, m));
+        if (g) g.items.forEach(function (hit) { box.appendChild(renderWord_(hit.item)); });
+      };
+      RE.Main.sectionSentences(st.blockId).forEach(function (x) { put(x.sid); });
+      groups.forEach(function (g) { put(g.sid); });
     }
+    if (keepScroll) return;
     st.scrollPos['screen-words'] = 0;
     if (st.screen === 'screen-words') window.scrollTo(0, 0);
+  }
+
+  // 再生タブの区間メモの部分（仕様 6.8・8.5）
+  var memoSelKey_ = '';
+  function renderMemos_(playable, cur) {
+    var st = RE.State, f = RE.Utils.formatTime;
+    var show = !!cur && cur.blockId !== K.SECTION_NONE && playable;
+    el['card-memo'].hidden = !show;
+    if (!show) return;
+    var memos = RE.Main.memosOf(st.blockId), sents = RE.Main.sectionSentences(st.blockId);
+    var has = {}; memos.forEach(function (m) { has[m.sid] = true; });
+    // 「この文」の選択肢（中身が変わったときだけ作り直す。iPhoneで選んでいる最中に閉じないように）
+    var key = st.blockId + '|' + memos.map(function (m) { return m.sid; }).join(',') + '|' + st.memoSid;
+    if (key !== memoSelKey_) {
+      memoSelKey_ = key;
+      var sel = el['sel-memo-sid']; sel.textContent = '';
+      sents.forEach(function (x) {
+        var head = x.text.length > K.MEMO_SID_TEXT_MAX ? x.text.slice(0, K.MEMO_SID_TEXT_MAX) + '…' : x.text;
+        var o = make_('option', '', (has[x.sid] ? '✓' : '') + x.sid + '　' + head);
+        o.value = x.sid;
+        sel.appendChild(o);
+      });
+      sel.value = st.memoSid;
+    }
+    el['sel-memo-sid'].disabled = !sents.length;
+    el['btn-memo-save'].textContent = M.MEMO_SAVE;
+    el['btn-memo-save'].disabled = !st.memoSid;
+    el['txt-memo-title'].textContent = fill(M.MEMO_TITLE, { name: cur.label });
+    var box = el['list-memos']; box.textContent = '';
+    memos.forEach(function (m) {
+      var row = make_('div', 'memo-row' + (RE.Main.isCurrentMemo(m) ? ' is-current' : ''));
+      var main = make_('button', 'memo-main'); main.type = 'button';
+      main.setAttribute('data-block', st.blockId); main.setAttribute('data-id', m.id);
+      main.appendChild(make_('span', 'memo-sid-tag', m.sid));
+      main.appendChild(make_('span', 'memo-time', f(m.s) + '〜' + f(m.e)));
+      var del = make_('button', 'memo-del', '×'); del.type = 'button';
+      del.setAttribute('data-block', st.blockId); del.setAttribute('data-id', m.id);
+      del.setAttribute('aria-label', 'この区間メモを削除');
+      row.appendChild(main); row.appendChild(del);
+      box.appendChild(row);
+    });
+    el['txt-memo-empty'].textContent = M.MEMO_EMPTY;
+    el['txt-memo-empty'].hidden = memos.length > 0;
+    el['txt-hint-memo'].textContent = M.HINT_MEMO;
   }
 
   // 節の一覧の開閉
@@ -536,10 +612,10 @@
     el['sheet-sync'].hidden = !(open && r && a);
     if (el['sheet-sync'].hidden) return;
     var dev = r.device || K.SYNC_DEVICE_OTHER;
-    var rs = RE.Sync.summary(r.sections), ls = RE.Sync.summary(a.sections);
+    var rs = RE.Sync.summary(r.sections, r.memos), ls = RE.Sync.summary(a.sections, a.memos);
     el['txt-sync-title'].textContent = M.SYNC_CONFLICT_TITLE;
-    el['txt-sync-remote'].textContent = fill(M.SYNC_CONFLICT_REMOTE, { device: dev, date: formatSyncDate_(r.savedAt), parts: rs.parts, done: rs.done });
-    el['txt-sync-local'].textContent = fill(M.SYNC_CONFLICT_LOCAL, { parts: ls.parts, done: ls.done });
+    el['txt-sync-remote'].textContent = fill(M.SYNC_CONFLICT_REMOTE, { device: dev, date: formatSyncDate_(r.savedAt), parts: rs.parts, done: rs.done, memos: rs.memos });
+    el['txt-sync-local'].textContent = fill(M.SYNC_CONFLICT_LOCAL, { parts: ls.parts, done: ls.done, memos: ls.memos });
     el['btn-sync-use-remote'].textContent = fill(M.SYNC_USE_REMOTE, { device: dev });
     el['btn-sync-keep-local'].textContent = M.SYNC_KEEP_LOCAL;
   }

@@ -1,4 +1,5 @@
 /* js/db.js — 記事と音声をiPhoneの中（IndexedDB）に保存する（RE.Db）。どの関数も失敗で止まらず、false・null・[] を返す */
+/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
 (function () {
   'use strict';
   var C = RE.Config;

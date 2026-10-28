@@ -1,11 +1,12 @@
 /* js/config.js / KEecolexico の定数（RE.Config）。KEecoloop v2.10.1 の config.js を元に、名前・版・保存キーを変え、KX・KXMSG を追加 */
+/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
 (function () {
   'use strict';
   window.RE = window.RE || {};
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '0.8.1',
+    APP_VERSION: '0.9.1',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -120,6 +121,8 @@
       SYNC_APP: 'KEecolexico',                  // 受け渡しファイルの app の値
       SYNC_FORMAT: 1,                           // 受け渡しファイルの形の版
       SYNC_DEVICE_OTHER: '別の端末',             // iPhone・iPad・Mac のどれでもないときの呼び名
+      MEMO_MAX_PER_SECTION: 30,                 // 1つの節に保存できる区間メモの数
+      MEMO_SID_TEXT_MAX: 18,                    // 「この文」の選択肢に出す、文の先頭の文字数
       TXT_ACCEPT: '.txt,text/plain'
     }),
 
@@ -170,15 +173,24 @@
       SYNC_STATUS_MISMATCH: '☁ ドライブの区切りがこの記事と合わないため、受け渡ししていません',
       SYNC_APPLIED: '{device}で保存した区切り・完了を読み込みました',
       SYNC_CONFLICT_TITLE: 'ドライブの区切り・完了が、この端末のものと違います',
-      SYNC_CONFLICT_REMOTE: 'ドライブ：{device}で{date}に保存（区間{parts}・完了{done}節）',
-      SYNC_CONFLICT_LOCAL: 'この端末：区間{parts}・完了{done}節',
+      SYNC_CONFLICT_REMOTE: 'ドライブ：{device}で{date}に保存（区間{parts}・完了{done}節・区間メモ{memos}）',
+      SYNC_CONFLICT_LOCAL: 'この端末：区間{parts}・完了{done}節・区間メモ{memos}',
       SYNC_USE_REMOTE: '{device}のものに置き換える',
       SYNC_KEEP_LOCAL: 'この端末のものを残す（ドライブを上書き）',
       SYNC_REPLACED: '{device}のものに置き換えました',
       SYNC_KEPT: 'この端末のものでドライブを上書きしました',
       SYNC_REASON: '理由：{reason}',
       SYNC_RETRY_HINT: '（ここを押すと、もう一度試します）',
-      UPDATE_NOTE: '記事・区切り・完了は消えません（再生は止まります）',
+      UPDATE_NOTE: '記事・区切り・完了・区間メモは消えません（再生は止まります）',
+      MEMO_SID_LABEL: 'この文',
+      MEMO_SAVE: '区間保存',
+      MEMO_TITLE: '区間メモ（{name}）',
+      MEMO_EMPTY: '保存した区間はまだありません',
+      MEMO_SAVED: '「{sid}」の区間を保存しました',
+      MEMO_REPLACED: '「{sid}」の区間を、今の範囲に置き換えました',
+      MEMO_FULL: 'この節の区間メモは30件までです。いらないものを×で消してください',
+      MEMO_OUT_OF_RANGE: 'この区間メモは、今の区切りの範囲の外にあります（区切りを直したため）。×で消して、保存し直してください',
+      HINT_MEMO: '※ 1つの文に開始・終了を合わせて「区間保存」。保存すると、次の文の範囲が続きから始まります。単語タブの文番号（── 3-1 ▶ ──）を押すと、その文をくり返します',
       BACKUP_FILE_PREFIX: 'keecolexico-backup-',
       BACKUP_EXPORTED: '書き出しました：{name}（{n}件の記事）',
       BACKUP_EMPTY: '書き出す記事がありません',

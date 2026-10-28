@@ -1,4 +1,5 @@
 /* css/style.css — KEecolexico の見た目（暗い画面・ロゴの青緑と藍。下にタブ） */
+/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
 :root {
   --bg: #0A0E18;
   --surface: #121A28;
@@ -14,6 +15,8 @@
   --accent: #2DD4BF;        /* 差し色（ロゴの青緑） */
   --accent-ink: #042F2A;    /* 差し色の上の文字 */
   --accent-2: #A5B4FC;      /* 2つ目の差し色（ロゴの藍） */
+  --memo: #FFC56B;          /* 区間メモ（他で使っていない色） */
+  --memo-ink: #2A1A00;      /* 区間メモの色の上の文字 */
   --danger: #FF4D4D;
   --logo-teal: #2DD4BF;     /* ロゴの「eco」 */
   --logo-indigo: #A5B4FC;   /* ロゴの「lexico」 */
@@ -226,8 +229,7 @@ body.has-mini .app { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var
   flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); color: var(--text);
   font-family: var(--num-font); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 700;
 }
-.range-edit.is-on { border-color: var(--accent); }
-.range-edit.pressed { background: var(--accent); color: var(--accent-ink); }
+.range-edit { display: flex; align-items: center; justify-content: center; }
 .range-panel { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--surface); border-radius: 12px; }
 .dg-row { display: flex; align-items: center; justify-content: center; gap: 4px; }
 .dg-label { width: 36px; font-size: 13px; color: var(--muted); }
@@ -315,3 +317,36 @@ body.kb-open .tab-bar, body.kb-open .mini-player { display: none; }
 .update-main { font-size: 15px; font-weight: 800; }
 .update-note { font-size: 12px; font-weight: 600; }
 .update-banner.pressed { filter: brightness(0.85); }
+
+/* ===== 区間メモ（仕様 6.8・8.5・8.10） ===== */
+.memo-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--surface); border-radius: 12px; border: 1px solid var(--line-soft); }
+.memo-sid-row { display: flex; align-items: center; gap: 8px; }
+.memo-sid-label { flex-shrink: 0; font-size: 13px; color: var(--muted); }
+.memo-sid {
+  flex: 1; min-width: 0; height: 44px; padding: 0 10px; font-size: 16px; color: var(--text);
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+}
+.btn-memo-save { min-height: 56px; background: var(--memo); color: var(--memo-ink); border-color: var(--memo); font-size: 17px; font-weight: 800; }
+.btn-memo-save.pressed { filter: brightness(0.85); background: var(--memo); color: var(--memo-ink); }
+.memo-title { font-size: 14px; font-weight: 700; margin-top: 2px; }
+.memo-list { display: flex; flex-direction: column; gap: 6px; }
+.memo-row { display: flex; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface-2); }
+.memo-row.is-current { border-color: var(--memo); }
+.memo-main {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 0 12px;
+  border: none; background: none; color: var(--text); text-align: left;
+}
+.memo-sid-tag { color: var(--memo); font-weight: 800; font-size: 16px; min-width: 44px; }
+.memo-time { font-family: var(--num-font); font-variant-numeric: tabular-nums; font-size: 18px; }
+.memo-del { width: 48px; flex-shrink: 0; border: none; border-left: 1px solid var(--line); background: none; color: var(--muted); font-size: 22px; }
+.memo-main.pressed, .memo-del.pressed { background: var(--surface-3); }
+.memo-empty { font-size: 13px; color: var(--muted); }
+.memo-hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
+button.sid-sep {
+  display: block; width: 100%; min-height: 44px; margin: 10px 0 6px; padding: 6px 8px;
+  border: 1px solid transparent; border-radius: 10px; background: none;
+  color: var(--memo); font-weight: 700; font-family: var(--num-font); font-size: 14px;
+}
+button.sid-sep[aria-current="true"] { border-color: var(--memo); background: rgba(255, 197, 107, 0.08); }
+button.sid-sep.pressed { background: rgba(255, 197, 107, 0.18); }
+.range-panel.is-off { opacity: 0.4; }

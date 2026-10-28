@@ -14,6 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/style.css">
 <!-- index.html — KEecolexico の全画面（表示する画面を切り替えて使う） -->
+<!-- 基づく仕様書：KEecolexico 仕様書 v0.9.1 -->
 </head>
 <body>
 <main class="app">
@@ -129,11 +130,11 @@
       </div>
       <div class="range-row">
         <button id="btn-mark-start" class="mark-btn mark-start" type="button"><span>ここを</span><span>開始</span></button>
-        <button id="btn-range-edit" class="range-edit" type="button" aria-label="開始・終了の時刻を変える">--:--〜--:--</button>
+        <div id="txt-range" class="range-edit" aria-label="繰り返す範囲">--:--〜--:--</div>
         <button id="btn-mark-end-range" class="mark-btn mark-end" type="button"><span>ここを</span><span>終了</span></button>
       </div>
       <div id="bar-range" class="bar"><div id="bar-range-fill" class="bar-fill"></div></div>
-      <div id="panel-range" class="range-panel" hidden>
+      <div id="panel-range" class="range-panel">
         <div class="dg-row" id="row-start">
           <span class="dg-label">開始</span>
           <div class="dg-col">
@@ -196,6 +197,18 @@
         <button id="btn-rate-10" class="opt-btn rate-btn" type="button" data-rate="1.0">1.0</button>
         <button id="btn-rate-09" class="opt-btn rate-btn" type="button" data-rate="0.9">0.9</button>
         <button id="btn-rate-08" class="opt-btn rate-btn" type="button" data-rate="0.8">0.8</button>
+      </div>
+      <!-- 区間メモ（仕様 6.8・8.5） -->
+      <div id="card-memo" class="memo-card">
+        <div class="memo-sid-row">
+          <label class="memo-sid-label" for="sel-memo-sid">この文</label>
+          <select id="sel-memo-sid" class="memo-sid"></select>
+        </div>
+        <button id="btn-memo-save" class="btn btn-memo-save" type="button">区間保存</button>
+        <div id="txt-memo-title" class="memo-title"></div>
+        <div id="list-memos" class="memo-list"></div>
+        <div id="txt-memo-empty" class="memo-empty" hidden></div>
+        <div id="txt-hint-memo" class="memo-hint"></div>
       </div>
       <div class="tools-title">再生の設定</div>
       <div id="panel-tools" class="tools">
