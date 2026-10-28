@@ -1,5 +1,5 @@
 // article.js — 記事本文を1文ずつに分け、文番号(sid)と節(ブロック)を付ける
-// 基づく仕様書：KEecolexico 仕様書 v0.9.1
+// 基づく仕様書：KEecolexico 仕様書 v0.10.1
 (function () {
   'use strict';
   var RE_QUESTION   = /^(\d+(?:\s*,\s*\d+)*)\.\s+(\S.*)$/;

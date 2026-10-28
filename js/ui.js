@@ -1,5 +1,5 @@
 /* js/ui.js — 画面の描画とボタン操作の受け付け（RE.UI）。中身の判断は RE.Main が行う */
-/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v0.10.1 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -45,15 +45,17 @@
   // クリックなどの受け付け
   function bindEvents_() {
     var on = function (id, fn) { el[id].addEventListener('click', fn); };
-    // 一覧
     // 下のタブ
-    TABS.forEach(function (name) { on('tab-' + name, function () { commitInput_(); h.onTab(name); }); });
-    // 単語タブの再生バー
-    on('btn-mini-prev', function () { h.onSectionPrev(); });
-    on('btn-mini-next', function () { h.onSectionNext(); });
+    TABS.forEach(function (name) { on('tab-' + name, function () { h.onTab(name); }); });
+    // 固定の再生バー（仕様 8.10）
     on('btn-mini-sec', function () { renderSectionSheet(true); });
     on('btn-mini-play', function () { h.onPlayPause(); });
-    on('btn-mini-next-chunk', function () { h.onNextChunk(); });
+    on('btn-mini-prev-break', function () { h.onPrevBreak(); });
+    on('btn-mini-next-break', function () { h.onNextBreak(); });
+    document.querySelectorAll('.mini-rate-btn').forEach(function (b) {
+      b.addEventListener('click', function () { h.onRateSelect(Number(b.getAttribute('data-rate'))); });
+    });
+    // 一覧
     on('btn-add-drive', function () { h.onAddDrive(); });
     on('btn-add-article', function () { h.onAddArticle(); });
     el['list-articles'].addEventListener('click', function (ev) {
@@ -87,26 +89,33 @@
     el['input-audio'].addEventListener('change', function () { var f = this.files && this.files[0]; this.value = ''; if (f) h.onAudioSelected(f); });
     el['input-title'].addEventListener('input', function () { RE.State.importDraft.title = this.value; });
     on('btn-import-save', function () { h.onImportSave(); });
-    // 記録
-    on('btn-mark-back', function () { h.onMarkBack(); });
-    on('btn-mark-play', function () { h.onMarkPlay(); });
-    on('btn-mark-back5', function () { h.onMarkSeek(-K.SEEK_SEC); });
-    on('btn-mark-fwd5', function () { h.onMarkSeek(K.SEEK_SEC); });
-    on('btn-mark-here', function () { h.onMarkHere(); });
-    on('btn-mark-break', function () { h.onMarkBreak(); });
-    on('btn-mark-end', function () { h.onMarkEnd(); });
+    // 区切りタブ（仕様 8.4）
     on('btn-mark-reset', function () { h.onMarkReset(); });
-    on('btn-mark-skip', function () { h.onMarkSkip(); });
-    on('btn-mark-undo', function () { h.onMarkUndo(); });
-    on('btn-mark-save', function () { h.onMarkSave(); });
     el['list-marks'].addEventListener('click', function (ev) {
       var b = ev.target.closest('button'); if (!b) return;
-      var bi = parseInt(b.getAttribute('data-bi'), 10), pi = parseInt(b.getAttribute('data-pi'), 10);
-      if (b.classList.contains('mark-preview')) { h.onMarkPreview(bi, pi); return; }
-      var which = b.getAttribute('data-which'), dir = Number(b.getAttribute('data-dir'));
-      if (which) h.onMarkAdjust(bi, pi, which, dir * K.ADJUST_SEC);
+      var blk = b.getAttribute('data-block'), part = Number(b.getAttribute('data-part')), id = b.getAttribute('data-id');
+      if (b.classList.contains('mark-sec-head')) h.onMarkToggle(blk);
+      else if (b.classList.contains('mark-part-play')) h.onMarkPartPlay(blk, part);
+      else if (b.classList.contains('mark-adj')) h.onMarkAdjust(blk, part, b.getAttribute('data-which'), Number(b.getAttribute('data-dir')) * K.ADJUST_SEC);
+      else if (b.classList.contains('mark-part-del')) h.onMarkPartDelete(blk, part);
+      else if (b.classList.contains('mark-memo-play')) h.onMemoTap(blk, id);
+      else if (b.classList.contains('mark-memo-del')) h.onMemoDelete(blk, id);
     });
-    // 学習
+    // 作業場（仕様 8.5）
+    on('btn-work-article', function () { h.onWorkTab('article'); });
+    on('btn-work-section', function () { h.onWorkTab('section'); });
+    el['sel-split-block'].addEventListener('change', function () { h.onSplitBlock(this.value); });
+    el['panel-article-text'].addEventListener('click', function (ev) {
+      var hd = ev.target.closest('.split-block'); if (hd) h.onSplitBlock(hd.getAttribute('data-block'));
+    });
+    on('btn-section-save', function () { h.onSectionSave(); });
+    on('btn-section-add', function () { h.onSectionAddPart(); });
+    el['panel-section-text'].addEventListener('click', function (ev) {
+      var b = ev.target.closest('button');
+      if (b && b.classList.contains('sent-play')) { h.onMemoTap(b.getAttribute('data-block'), b.getAttribute('data-id')); return; }
+      if (b && b.classList.contains('sent-del')) { h.onMemoDelete(b.getAttribute('data-block'), b.getAttribute('data-id')); return; }
+      var row = ev.target.closest('.sent-row'); if (row) h.onMemoSidChange(row.getAttribute('data-sid'));
+    });
     on('btn-sec-prev', function () { h.onSectionPrev(); });
     on('btn-sec-next', function () { h.onSectionNext(); });
     on('btn-sec-label', function () { renderSectionSheet(true); });
@@ -119,43 +128,29 @@
     });
     on('btn-sync-use-remote', function () { h.onSyncUseRemote(); });
     on('btn-sync-keep-local', function () { h.onSyncKeepLocal(); });
-    // 区間メモ（仕様 6.8）
-    on('btn-memo-save', function () { commitInput_(); h.onMemoSave(); });
-    el['sel-memo-sid'].addEventListener('change', function () { h.onMemoSidChange(this.value); });
-    el['list-memos'].addEventListener('click', function (ev) {
-      var b = ev.target.closest('button'); if (!b) return;
-      var blk = b.getAttribute('data-block'), id = b.getAttribute('data-id');
-      if (b.classList.contains('memo-main')) h.onMemoTap(blk, id);
-      else if (b.classList.contains('memo-del')) h.onMemoDelete(blk, id);
-    });
-    el['list-words'].addEventListener('click', function (ev) {
-      var b = ev.target.closest('button.sid-sep'); if (!b) return;
-      h.onMemoTap(b.getAttribute('data-block'), b.getAttribute('data-id'));
-    });
+    on('btn-memo-save', function () { h.onMemoSave(); });
     on('btn-mark-start', function () { h.onMarkRange('start'); });
     on('btn-mark-end-range', function () { h.onMarkRange('end'); });
-    on('btn-all', function () { commitInput_(); h.onSelectAll(); });
+    on('btn-all', function () { h.onSelectAll(); });
     document.querySelectorAll('.digit-btn').forEach(function (b) {
       b.addEventListener('click', function () {
         var d = Number(b.getAttribute('data-unit')) * Number(b.getAttribute('data-dir'));
         if (b.getAttribute('data-target') === 'start') h.onStartStep(d); else h.onEndStep(d);
       });
     });
-    on('btn-stop', function () { commitInput_(); h.onStop(); });
-    on('btn-play', function () { commitInput_(); h.onPlayPause(); });
-    on('btn-prev-chunk', function () { commitInput_(); h.onPrevChunk(); });
-    on('btn-next-chunk', function () { commitInput_(); h.onNextChunk(); });
+    on('btn-stop', function () { h.onStop(); });
+    // 学習タブ
+    on('btn-words-prev', function () { h.onSectionPrev(); });
+    on('btn-words-next', function () { h.onSectionNext(); });
+    el['list-words'].addEventListener('click', function (ev) {
+      var b = ev.target.closest('button.sid-sep'); if (!b) return;
+      h.onMemoTap(b.getAttribute('data-block'), b.getAttribute('data-id'));
+    });
     on('btn-complete', function () { h.onComplete(); });
-    on('btn-move-minus', function () { h.onMoveStep(-1); });
-    on('btn-move-plus', function () { h.onMoveStep(1); });
-    el['input-move'].addEventListener('change', function () { h.onMoveCommitted(this.value); });
+    // 設定
     document.querySelectorAll('.gap-btn').forEach(function (b) {
       b.addEventListener('click', function () { h.onGapSelect(Number(b.getAttribute('data-gap'))); });
     });
-    document.querySelectorAll('.rate-btn').forEach(function (b) {
-      b.addEventListener('click', function () { commitInput_(); h.onRateSelect(Number(b.getAttribute('data-rate'))); });
-    });
-    // 設定
     ['L', 'M', 'S'].forEach(function (f) { on('btn-font-' + f, function () { h.onFontSelect(f); }); });
     K.DEADLINE_OPTIONS.forEach(function (w) { on('btn-deadline-' + w, function () { h.onDeadlineSelect(w); }); });
     on('btn-gas-save', function () { h.onGasSave(el['input-gas-url'].value, el['input-gas-key'].value); });
@@ -192,21 +187,15 @@
     });
   }
 
-  // 入力中の移動時間を先に確定させる（iPhoneはボタンを押しても入力欄の確定が起きないため）
-  function commitInput_() {
-    if (document.activeElement === el['input-move']) el['input-move'].blur();
-  }
-
-  // 画面切替
   // 画面切替。画面ごとにスクロールの位置を覚えておき、戻ったときに元の位置へ（仕様 8.9）
   function showScreen(id) {
     var st = RE.State;
     if (st.screen && st.screen !== id) st.scrollPos[st.screen] = window.scrollY;
     SCREENS.forEach(function (s) { el[s].hidden = s !== id; });
     if (id !== 'screen-study' && id !== 'screen-words') renderSectionSheet(false);
-    var words = id === 'screen-words';
-    el['mini-player'].hidden = !words;
-    document.body.classList.toggle('has-mini', words);
+    var mini = id === 'screen-words' || id === 'screen-study';   // 固定の再生バーは学習・作業場（仕様 8.10）
+    el['mini-player'].hidden = !mini;
+    document.body.classList.toggle('has-mini', mini);
     var changed = st.screen !== id;
     st.screen = id;
     renderTabs();
@@ -316,77 +305,84 @@
   function setImportTitle(text) { el['input-title'].value = text; }
   function setArticleText(text) { el['input-article'].value = text; }
 
-  // ===== 記録 =====
-  function renderMark() {
-    var st = RE.State, blocks = st.view ? st.view.blocks : [], n = blocks.length, L = K.MARK_LABELS;
-    var nextName = st.markIndex < n ? blocks[st.markIndex].label : '';
-    var here = el['btn-mark-here'];
-    here.textContent = nextName ? fill(L.HERE, { name: nextName }) : L.ALL;
-    here.disabled = !nextName;
-    // 節中断／中断終了
-    var brk = el['btn-mark-break'], cur = st.markParts[st.markIndex - 1];
-    brk.textContent = st.markState === 'paused' ? L.RESUME : L.BREAK;
-    brk.disabled = st.markState === 'idle' || (st.markState === 'open' && cur && cur.length >= K.PART_LETTERS.length);
-    brk.classList.toggle('is-active', st.markState === 'paused');
-    // 節END／次節START
-    var end = el['btn-mark-end'];
-    if (st.markState === 'idle') {
-      end.textContent = nextName ? fill(L.NEXT_START, { name: nextName }) : L.END;
-      end.disabled = !nextName;
-      end.classList.toggle('is-active', !!nextName && st.markIndex > 0);
-    } else {
-      end.textContent = L.END; end.disabled = false; end.classList.remove('is-active');
-    }
-    el['btn-mark-skip'].disabled = st.markIndex >= n;
-    el['btn-mark-undo'].disabled = !st.markHistory.length;
+  // ===== 区切りタブ（仕様 8.4） =====
+  // 区間の範囲の文字（A・B があれば「／」でつなぐ。無ければ「—（まだ）」）
+  function partsText_(sec) {
+    var f = RE.Utils.formatTime;
+    if (!sec || !sec.parts.length) return M.MARK_NOT_YET;
+    return sec.parts.map(function (pt) { return f(pt.s) + '〜' + f(pt.e); }).join('／');
+  }
+  // scrollOpen が true なら、開いた節の見出しが見える位置へ
+  function renderMarks(scrollOpen) {
+    var st = RE.State, a = st.article, v = st.view, f = RE.Utils.formatTime;
+    var box = el['list-marks']; box.textContent = '';
+    if (!a || !v) return;
+    var done = 0, memoCount = 0;
+    a.sections.forEach(function (s) { if (s.parts.length) done++; });
+    Object.keys(a.memos || {}).forEach(function (k) { memoCount += a.memos[k].length; });
+    el['txt-marks-summary'].textContent = fill(M.MARKS_SUMMARY, { done: done, total: a.sections.length, memos: memoCount });
+    var openHead = null;
+    v.blocks.forEach(function (b, bi) {
+      var sec = RE.Main.sectionEntry(b.id), memos = RE.Main.memosOf(b.id), open = st.openMarkBlockId === b.id;
+      var wrap = make_('div', 'mark-sec' + (open ? ' is-open' : ''));
+      var head = make_('button', 'mark-sec-head'); head.type = 'button';
+      head.setAttribute('data-block', b.id);
+      head.setAttribute('aria-expanded', String(open));
+      head.appendChild(make_('span', 'mark-sec-name', b.label + (sec && sec.done ? ' ✓' : '')));
+      head.appendChild(make_('span', 'mark-sec-range' + (sec && sec.parts.length ? '' : ' is-empty'), partsText_(sec)));
+      head.appendChild(make_('span', 'mark-sec-count', memos.length ? '文' + memos.length : ''));
+      head.appendChild(make_('span', 'mark-sec-caret', open ? '▾' : '▸'));
+      wrap.appendChild(head);
+      if (open) {
+        openHead = head;
+        var body = make_('div', 'mark-sec-body');
+        (sec ? sec.parts : []).forEach(function (pt, pi) {
+          var row = make_('div', 'mark-part-row');
+          var top = make_('div', 'mark-top');
+          top.appendChild(make_('span', 'mark-label', sec.parts.length > 1 ? '区間' + K.PART_LETTERS.charAt(pi) : '区間'));
+          top.appendChild(make_('span', 'mark-time', f(pt.s) + '〜' + f(pt.e)));
+          var pv = make_('button', 'btn btn-mini mark-part-play', '▶'); pv.type = 'button';
+          pv.setAttribute('data-block', b.id); pv.setAttribute('data-part', pi); pv.setAttribute('aria-label', 'この区間を再生');
+          top.appendChild(pv);
+          var pending = st.markDeleteKey === b.id + '|' + pi;
+          var del = make_('button', 'btn btn-mini mark-part-del' + (pending ? ' btn-danger' : ''), pending ? '本当に×' : '×'); del.type = 'button';
+          del.setAttribute('data-block', b.id); del.setAttribute('data-part', pi); del.setAttribute('aria-label', 'この区間を消す');
+          top.appendChild(del);
+          row.appendChild(top);
+          var adj = make_('div', 'mark-adjust');
+          [['s', -1, '始−1'], ['s', 1, '始＋1'], ['e', -1, '終−1'], ['e', 1, '終＋1']].forEach(function (x) {
+            var bt = make_('button', 'btn btn-mini mark-adj', x[2]); bt.type = 'button';
+            bt.setAttribute('data-block', b.id); bt.setAttribute('data-part', pi);
+            bt.setAttribute('data-which', x[0]); bt.setAttribute('data-dir', x[1]);
+            adj.appendChild(bt);
+          });
+          row.appendChild(adj);
+          body.appendChild(row);
+        });
+        if (!memos.length) body.appendChild(make_('div', 'mark-empty', M.MARKS_NO_MEMO));
+        memos.forEach(function (m) {
+          var mr = make_('div', 'mark-memo-row');
+          mr.appendChild(make_('span', 'mark-memo-sid', m.sid));
+          mr.appendChild(make_('span', 'mark-time', f(m.s) + '〜' + f(m.e)));
+          var mp = make_('button', 'btn btn-mini mark-memo-play', '▶'); mp.type = 'button';
+          mp.setAttribute('data-block', b.id); mp.setAttribute('data-id', m.id); mp.setAttribute('aria-label', m.sid + ' をくり返す');
+          var md = make_('button', 'btn btn-mini mark-memo-del', '×'); md.type = 'button';
+          md.setAttribute('data-block', b.id); md.setAttribute('data-id', m.id); md.setAttribute('aria-label', m.sid + ' の区間メモを削除');
+          mr.appendChild(mp); mr.appendChild(md);
+          body.appendChild(mr);
+        });
+        wrap.appendChild(body);
+      }
+      box.appendChild(wrap);
+    });
     var reset = el['btn-mark-reset'];
-    reset.hidden = !st.markFromSaved;
+    reset.hidden = !a.marked;
     reset.textContent = st.markResetPending ? '本当に記録し直す' : '最初から記録し直す';
     reset.classList.toggle('btn-danger', !!st.markResetPending);
-    renderMarkPlay_();
-    // 記録した区間の一覧
-    var box = el['list-marks']; box.textContent = '';
-    blocks.forEach(function (b, bi) {
-      var ps = st.markParts[bi];
-      if (ps === undefined) return;
-      if (!ps.length) {
-        var r0 = make_('div', 'mark-row');
-        var top0 = make_('div', 'mark-top');
-        top0.appendChild(make_('span', 'mark-label', b.label));
-        top0.appendChild(make_('span', 'mark-time mark-skipped', '—（とばした）'));
-        r0.appendChild(top0); box.appendChild(r0);
-        return;
-      }
-      ps.forEach(function (pt, pi) {
-        var row = make_('div', 'mark-row');
-        var top = make_('div', 'mark-top');
-        var name = ps.length > 1 ? b.label + K.PART_LETTERS.charAt(pi) : b.label;
-        top.appendChild(make_('span', 'mark-label', name));
-        top.appendChild(make_('span', 'mark-time', RE.Utils.formatTime(pt.s) + '〜' + (pt.e === null ? '…' : RE.Utils.formatTime(pt.e))));
-        var pv = make_('button', 'btn btn-mini mark-preview', '▶'); pv.type = 'button';
-        pv.setAttribute('data-bi', bi); pv.setAttribute('data-pi', pi);
-        top.appendChild(pv);
-        row.appendChild(top);
-        var adj = make_('div', 'mark-adjust');
-        [['s', -1, '始−1'], ['s', 1, '始＋1'], ['e', -1, '終−1'], ['e', 1, '終＋1']].forEach(function (x) {
-          var bt = make_('button', 'btn btn-mini mark-adj', x[2]); bt.type = 'button';
-          bt.setAttribute('data-bi', bi); bt.setAttribute('data-pi', pi);
-          bt.setAttribute('data-which', x[0]); bt.setAttribute('data-dir', x[1]);
-          if (x[0] === 'e' && pt.e === null) bt.disabled = true;
-          adj.appendChild(bt);
-        });
-        row.appendChild(adj);
-        box.appendChild(row);
-      });
-    });
-  }
-  function renderMarkPlay_() {
-    var playing = RE.State.playerState === S.PLAYING;
-    el['btn-mark-play'].textContent = playing ? '❚❚' : '▶';
-    el['btn-mark-play'].setAttribute('aria-label', playing ? '一時停止' : '再生');
+    if (scrollOpen && openHead) openHead.scrollIntoView({ block: 'nearest' });
   }
 
-  // ===== 学習 =====
+  // ===== 作業場・学習（仕様 8.5・8.10） =====
   function renderStudyTop() {
     var st = RE.State, a = st.article;
     if (!a || !st.view) return;
@@ -394,58 +390,155 @@
     renderSyncStatus();
     el['txt-progress'].textContent = RE.Main.studyProgressText();
     var nav = RE.Main.navList(), idx = RE.Main.navIndex();
-    var cur = nav[idx];
+    var cur = st.blockId ? nav[idx] : null;
     var label = cur ? cur.label : '';
+    var secE = cur ? RE.Main.sectionEntry(cur.blockId) : null;
     if (cur && cur.blockId !== K.SECTION_NONE) {
-      var n = st.view.blocks.length;
-      label += '（' + (cur.blockIndex + 1) + '/' + n + '）';
-      var sec = RE.Main.sectionEntry(cur.blockId);
-      if (sec && sec.done) label += ' ✓';
-      if (sec && !sec.parts.length) label += ' —';
+      label += '（' + (cur.blockIndex + 1) + '/' + st.view.blocks.length + '）';
+      if (secE && secE.done) label += ' ✓';
+      if (secE && !secE.parts.length) label += ' —';
     }
-    el['btn-sec-label'].textContent = label;
-    el['btn-sec-prev'].disabled = idx <= 0;
-    el['btn-sec-next'].disabled = idx >= nav.length - 1;
+    el['btn-sec-label'].textContent = label || '—';
+    el['btn-sec-prev'].disabled = !cur || idx <= 0;
+    el['btn-sec-next'].disabled = !cur || idx >= nav.length - 1;
     var r = RE.Main.currentRange();
     var playable = !!r;
     renderRange_(r);
-    ['btn-play', 'btn-stop', 'btn-all', 'btn-prev-chunk', 'btn-next-chunk', 'btn-mark-start', 'btn-mark-end-range'].forEach(function (id) {
-      el[id].disabled = !playable;
-    });
-    el['txt-next-step'].textContent = '＋' + RE.Utils.calcStepSec(st.moveSec) + '秒';
-    renderMemos_(playable, cur);
+    ['btn-stop', 'btn-all', 'btn-mark-start', 'btn-mark-end-range'].forEach(function (id) { el[id].disabled = !playable; });
+    renderWork_(playable, cur);
+    // 学習タブ
     var isNone = !cur || cur.blockId === K.SECTION_NONE;
-    var secE = cur ? RE.Main.sectionEntry(cur.blockId) : null;
     el['btn-complete'].disabled = isNone || !secE || !secE.parts.length;
     el['btn-complete'].textContent = secE && secE.done ? '完了を取り消す' : 'この節を完了';
     el['btn-complete'].classList.toggle('is-done', !!(secE && secE.done));
-    var playing = st.playerState === S.PLAYING;
-    el['btn-play'].textContent = playing ? '❚❚' : '▶';
-    el['btn-play'].setAttribute('aria-label', playing ? '一時停止' : '再生');
-    // 単語タブ（見出し・再生バー。仕様 8.10）
     el['txt-words-title'].textContent = label;
     el['txt-words-progress'].textContent = el['txt-progress'].textContent;
-    var sec2 = cur ? RE.Main.sectionEntry(cur.blockId) : null;
-    el['txt-mini-label'].textContent = (cur ? cur.label : '') + (sec2 && sec2.done ? ' ✓' : '');
-    el['txt-mini-range'].textContent = r ? RE.Utils.formatTime(r.s) + '〜' + RE.Utils.formatTime(r.e) : '--:--〜--:--';
-    el['btn-mini-prev'].disabled = idx <= 0;
-    el['btn-mini-next'].disabled = idx >= nav.length - 1;
+    el['btn-words-prev'].disabled = !cur || idx <= 0;
+    el['btn-words-next'].disabled = !cur || idx >= nav.length - 1;
+    renderMini_(playable, cur);
+    if (st.sheetOpen) renderSectionSheet(true);
+  }
+
+  // 作業場の中身（小さなタブ・本文分割・節分割）。パネルは中身が変わったときだけ作り直す
+  var splitKey_ = '', sectionKey_ = '';
+  function renderWork_(playable, cur) {
+    var st = RE.State, split = st.engineMode === 'split', f = RE.Utils.formatTime;
+    el['btn-work-article'].setAttribute('aria-pressed', String(split));
+    el['btn-work-section'].setAttribute('aria-pressed', String(!split));
+    el['panel-work-article'].hidden = !split;
+    el['panel-work-section'].hidden = split;
+    el['btn-section-save'].hidden = !split;
+    el['btn-section-add'].hidden = !split;
+    el['btn-memo-save'].hidden = split;
+    if (split) {
+      var blocks = st.view.blocks;
+      var key = st.article.articleId + '|' + st.splitBlockId + '|' + blocks.map(function (b) { return partsText_(RE.Main.sectionEntry(b.id)); }).join(',');
+      if (key !== splitKey_) {
+        splitKey_ = key; sectionKey_ = '';
+        var sel = el['sel-split-block']; sel.textContent = '';
+        var panel = el['panel-article-text']; panel.textContent = '';
+        var target = null;
+        blocks.forEach(function (b) {
+          var sec = RE.Main.sectionEntry(b.id), has = !!(sec && sec.parts.length);
+          var o = make_('option', '', (has ? '✓ ' : '') + b.label + '（' + (has ? partsText_(sec) : 'まだ') + '）');
+          o.value = b.id; sel.appendChild(o);
+          var box = make_('div', 'split-block' + (b.id === st.splitBlockId ? ' is-target' : ''));
+          box.setAttribute('data-block', b.id);
+          var hd = make_('div', 'split-block-head');
+          hd.appendChild(make_('span', 'split-name', (b.id === st.splitBlockId ? '▶' : '') + b.label));
+          hd.appendChild(make_('span', 'split-range', has ? partsText_(sec) : '（まだ）'));
+          if (has) hd.appendChild(make_('span', 'split-check', '✓'));
+          box.appendChild(hd);
+          b.units.forEach(function (u) {
+            if (u.kind === 'skipped') return;
+            var row = make_('div', 'split-unit');
+            row.appendChild(make_('span', 'split-sid', u.sid));
+            row.appendChild(make_('span', 'split-text', u.text));
+            box.appendChild(row);
+          });
+          panel.appendChild(box);
+          if (b.id === st.splitBlockId) target = box;
+        });
+        sel.value = st.splitBlockId;
+        if (target) panel.scrollTop = Math.max(0, target.offsetTop - 4);
+      }
+      el['btn-section-save'].textContent = M.SECTION_SAVE;
+      el['btn-section-add'].textContent = M.SECTION_ADD;
+      el['btn-section-save'].disabled = !playable || !st.splitBlockId;
+      el['btn-section-add'].disabled = !playable || !st.splitBlockId;
+      el['txt-hint-article'].textContent = M.HINT_ARTICLE;
+      return;
+    }
+    // 節分割
+    var bid = st.blockId, show = !!cur && bid !== K.SECTION_NONE;
+    var memos = show ? RE.Main.memosOf(bid) : [], sents = show ? RE.Main.sectionSentences(bid) : [];
+    var mm = {}; memos.forEach(function (m) { mm[m.sid] = m; });
+    var key2 = st.article.articleId + '|' + bid + '|' + st.partIndex + '|' + st.memoSid + '|' + st.rangeStart + '-' + st.rangeEnd + '|' +
+               memos.map(function (m) { return m.sid + ':' + m.s + '-' + m.e; }).join(',');
+    if (key2 !== sectionKey_) {
+      var sidChanged = sectionKey_.split('|')[3] !== st.memoSid || sectionKey_.split('|')[1] !== bid;
+      sectionKey_ = key2; splitKey_ = '';
+      var panel2 = el['panel-section-text']; panel2.textContent = '';
+      var target2 = null;
+      if (!sents.length) panel2.appendChild(make_('div', 'empty', show ? '（この節に文はありません）' : M.NEED_MARK));
+      sents.forEach(function (x) {
+        var row = make_('div', 'sent-row' + (x.sid === st.memoSid ? ' is-target' : ''));
+        row.setAttribute('data-sid', x.sid);
+        var line = make_('div', 'sent-line');
+        line.appendChild(make_('span', 'sent-sid', x.sid));
+        line.appendChild(make_('span', 'sent-text', x.text));
+        row.appendChild(line);
+        var m = mm[x.sid];
+        if (m) {
+          var mr = make_('div', 'sent-memo');
+          mr.appendChild(make_('span', 'sent-time' + (RE.Main.isCurrentMemo(m) ? ' is-current' : ''), f(m.s) + '〜' + f(m.e)));
+          var pb = make_('button', 'sent-play', '▶'); pb.type = 'button';
+          pb.setAttribute('data-block', bid); pb.setAttribute('data-id', m.id); pb.setAttribute('aria-label', x.sid + ' をくり返す');
+          var db = make_('button', 'sent-del', '×'); db.type = 'button';
+          db.setAttribute('data-block', bid); db.setAttribute('data-id', m.id); db.setAttribute('aria-label', x.sid + ' の区間メモを削除');
+          mr.appendChild(pb); mr.appendChild(db);
+          row.appendChild(mr);
+        }
+        panel2.appendChild(row);
+        if (x.sid === st.memoSid) target2 = row;
+      });
+      if (sidChanged && target2) {
+        var top = target2.offsetTop, bottom = top + target2.offsetHeight;
+        if (top < panel2.scrollTop || bottom > panel2.scrollTop + panel2.clientHeight) panel2.scrollTop = Math.max(0, top - 40);
+      }
+    }
+    el['btn-memo-save'].textContent = fill(M.MEMO_SAVE, { sid: st.memoSid || '—' });
+    el['btn-memo-save'].disabled = !playable || !st.memoSid || !show;
+    el['txt-hint-section'].textContent = M.HINT_SECTION;
+  }
+
+  // 固定の再生バー（仕様 8.10）
+  function renderMini_(playable, cur) {
+    var st = RE.State, a = st.article, r = RE.Main.currentRange(), f = RE.Utils.formatTime;
+    var label = '';
+    if (st.engineMode === 'split') {
+      var bi = RE.Main.blockIndex(st.splitBlockId);
+      label = M.WORK_ARTICLE + '：' + (bi >= 0 ? st.view.blocks[bi].label : '');
+    } else if (cur) {
+      label = cur.label;
+      var cm = RE.Main.memosOf(cur.blockId).filter(function (m) { return RE.Main.isCurrentMemo(m); })[0];
+      if (cm) label += ' ' + cm.sid;
+      var sec = RE.Main.sectionEntry(cur.blockId);
+      if (sec && sec.done) label += ' ✓';
+    }
+    el['txt-mini-label'].textContent = label;
+    el['txt-mini-range'].textContent = r ? f(r.s) + '〜' + f(r.e) : '--:--〜--:--';
+    var playing = st.playerState === S.PLAYING;
     el['btn-mini-play'].disabled = !playable;
-    el['btn-mini-next-chunk'].disabled = !playable;
     el['btn-mini-play'].textContent = playing ? '❚❚' : '▶';
     el['btn-mini-play'].setAttribute('aria-label', playing ? '一時停止' : '再生');
-    el['txt-mini-step'].textContent = '＋' + RE.Utils.calcStepSec(st.moveSec) + '秒';
-    if (!r) el['bar-mini-fill'].style.width = '0%';
-    // 再生の設定
-    el['input-move'].value = st.moveSec;
-    document.querySelectorAll('.gap-btn').forEach(function (b) {
-      b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-gap')) === st.gapSec));
-    });
-    document.querySelectorAll('.rate-btn').forEach(function (b) {
+    el['btn-mini-prev-break'].disabled = !a.marked;
+    el['btn-mini-next-break'].disabled = !a.marked;
+    document.querySelectorAll('.mini-rate-btn').forEach(function (b) {
       b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-rate')) === st.rate));
       b.disabled = !playable;
     });
-    if (st.sheetOpen) renderSectionSheet(true);
+    if (!r) { el['bar-mini-fill'].style.width = '0%'; el['bar-range-fill'].style.width = '0%'; }
   }
 
   // 範囲の行・時刻の▲▼の表示（仕様 6.5・8.5）
@@ -516,50 +609,6 @@
     if (st.screen === 'screen-words') window.scrollTo(0, 0);
   }
 
-  // 再生タブの区間メモの部分（仕様 6.8・8.5）
-  var memoSelKey_ = '';
-  function renderMemos_(playable, cur) {
-    var st = RE.State, f = RE.Utils.formatTime;
-    var show = !!cur && cur.blockId !== K.SECTION_NONE && playable;
-    el['card-memo'].hidden = !show;
-    if (!show) return;
-    var memos = RE.Main.memosOf(st.blockId), sents = RE.Main.sectionSentences(st.blockId);
-    var has = {}; memos.forEach(function (m) { has[m.sid] = true; });
-    // 「この文」の選択肢（中身が変わったときだけ作り直す。iPhoneで選んでいる最中に閉じないように）
-    var key = st.blockId + '|' + memos.map(function (m) { return m.sid; }).join(',') + '|' + st.memoSid;
-    if (key !== memoSelKey_) {
-      memoSelKey_ = key;
-      var sel = el['sel-memo-sid']; sel.textContent = '';
-      sents.forEach(function (x) {
-        var head = x.text.length > K.MEMO_SID_TEXT_MAX ? x.text.slice(0, K.MEMO_SID_TEXT_MAX) + '…' : x.text;
-        var o = make_('option', '', (has[x.sid] ? '✓' : '') + x.sid + '　' + head);
-        o.value = x.sid;
-        sel.appendChild(o);
-      });
-      sel.value = st.memoSid;
-    }
-    el['sel-memo-sid'].disabled = !sents.length;
-    el['btn-memo-save'].textContent = M.MEMO_SAVE;
-    el['btn-memo-save'].disabled = !st.memoSid;
-    el['txt-memo-title'].textContent = fill(M.MEMO_TITLE, { name: cur.label });
-    var box = el['list-memos']; box.textContent = '';
-    memos.forEach(function (m) {
-      var row = make_('div', 'memo-row' + (RE.Main.isCurrentMemo(m) ? ' is-current' : ''));
-      var main = make_('button', 'memo-main'); main.type = 'button';
-      main.setAttribute('data-block', st.blockId); main.setAttribute('data-id', m.id);
-      main.appendChild(make_('span', 'memo-sid-tag', m.sid));
-      main.appendChild(make_('span', 'memo-time', f(m.s) + '〜' + f(m.e)));
-      var del = make_('button', 'memo-del', '×'); del.type = 'button';
-      del.setAttribute('data-block', st.blockId); del.setAttribute('data-id', m.id);
-      del.setAttribute('aria-label', 'この区間メモを削除');
-      row.appendChild(main); row.appendChild(del);
-      box.appendChild(row);
-    });
-    el['txt-memo-empty'].textContent = M.MEMO_EMPTY;
-    el['txt-memo-empty'].hidden = memos.length > 0;
-    el['txt-hint-memo'].textContent = M.HINT_MEMO;
-  }
-
   // 節の一覧の開閉
   function renderSectionSheet(open) {
     RE.State.sheetOpen = !!open;
@@ -620,23 +669,21 @@
     el['btn-sync-keep-local'].textContent = M.SYNC_KEEP_LOCAL;
   }
 
-  // 位置の表示（学習画面はバーの塗り、記録画面は時刻）
+  // 位置の表示（作業場は範囲のバーと再生バー、学習は再生バー）
   function updatePosition(sec) {
     var scr = RE.State.screen;
     if (scr === 'screen-study' || scr === 'screen-words') {
       var r = RE.Main.currentRange();
       var f = r && r.e > r.s ? Math.min(1, Math.max(0, (sec - r.s) / (r.e - r.s))) : 0;
-      el[scr === 'screen-study' ? 'bar-range-fill' : 'bar-mini-fill'].style.width = (f * 100).toFixed(1) + '%';
-    } else if (RE.State.screen === 'screen-mark') {
-      var dur = RE.State.article ? RE.State.article.durationSec : 0;
-      el['txt-mark-pos'].textContent = RE.Utils.formatTime(sec) + ' / ' + RE.Utils.formatTime(dur);
+      var w = (f * 100).toFixed(1) + '%';
+      el['bar-mini-fill'].style.width = w;
+      if (scr === 'screen-study') el['bar-range-fill'].style.width = w;
     }
   }
 
   // 再生ボタンの見た目だけ更新（エンジンの状態が変わったとき）
   function renderPlayButtons() {
-    if (RE.State.screen === 'screen-mark') renderMarkPlay_();
-    else if (RE.State.screen === 'screen-study' || RE.State.screen === 'screen-words') renderStudyTop();
+    if (RE.State.screen === 'screen-study' || RE.State.screen === 'screen-words') renderStudyTop();
   }
 
   // ===== 設定 =====
@@ -647,13 +694,16 @@
     var s = RE.Drive.getSettings();
     el['input-gas-url'].value = s.url;
     el['input-gas-key'].value = s.key;
+    document.querySelectorAll('.gap-btn').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-gap')) === st.gapSec));
+    });
   }
 
   RE.UI = {
     init: init, fill: fill, showScreen: showScreen, showMessage: showMessage, clearMessage: clearMessage,
     applyFontSize: applyFontSize, renderLibrary: renderLibrary, renderDrive: renderDrive,
     renderImport: renderImport, setImportSummary: setImportSummary, setImportTitle: setImportTitle, setArticleText: setArticleText,
-    renderMark: renderMark, renderStudyTop: renderStudyTop, renderWordList: renderWordList,
+    renderMarks: renderMarks, renderStudyTop: renderStudyTop, renderWordList: renderWordList,
     renderSectionSheet: renderSectionSheet, updatePosition: updatePosition, renderPlayButtons: renderPlayButtons,
     renderSettings: renderSettings, renderSyncStatus: renderSyncStatus, renderSyncSheet: renderSyncSheet,
     renderTabs: renderTabs, showUpdateBanner: showUpdateBanner

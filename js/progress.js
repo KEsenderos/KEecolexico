@@ -1,5 +1,5 @@
 // progress.js — 「今日」と締切までの日数、今日の目安を計算する
-// 基づく仕様書：KEecolexico 仕様書 v0.9.1
+// 基づく仕様書：KEecolexico 仕様書 v0.10.1
 (function () {
   'use strict';
   var K = function () { return RE.Config.KX; };

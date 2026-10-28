@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/style.css">
 <!-- index.html — KEecolexico の全画面（表示する画面を切り替えて使う） -->
-<!-- 基づく仕様書：KEecolexico 仕様書 v0.9.1 -->
+<!-- 基づく仕様書：KEecolexico 仕様書 v0.10.1 -->
 </head>
 <body>
 <main class="app">
@@ -90,32 +90,15 @@
   <!-- ===== 節の位置の記録 ===== -->
   <section id="screen-mark" class="screen" hidden>
     <header class="subbar">
-      <button id="btn-mark-back" class="btn btn-back" type="button">◀ やめる</button>
-      <div class="subtitle">節の位置の記録</div>
+      <div class="subtitle subtitle-large">区切り</div>
     </header>
-    <div id="txt-mark-pos" class="mark-pos">00:00 / 00:00</div>
-    <div class="row-center">
-      <button id="btn-mark-back5" class="btn btn-round" type="button">−5秒</button>
-      <button id="btn-mark-play" class="btn btn-play" type="button" aria-label="再生">▶</button>
-      <button id="btn-mark-fwd5" class="btn btn-round" type="button">＋5秒</button>
-    </div>
-    <button id="btn-mark-here" class="btn btn-here" type="button">ここから</button>
-    <div class="row-2">
-      <button id="btn-mark-break" class="btn btn-mark2" type="button">節中断</button>
-      <button id="btn-mark-end" class="btn btn-mark2" type="button">節END</button>
-    </div>
-    <div class="row-2">
-      <button id="btn-mark-skip" class="btn" type="button">この節は音声にない（とばす）</button>
-      <button id="btn-mark-undo" class="btn" type="button">1つ取り消す</button>
-    </div>
-    <div id="msg-mark" class="msg" role="status"></div>
-    <div class="sep-title">─ 記録した区間 ─</div>
-    <div id="list-marks" class="list"></div>
+    <div id="txt-marks-summary" class="progress"></div>
+    <div id="list-marks" class="mark-list"></div>
     <button id="btn-mark-reset" class="btn" type="button" hidden>最初から記録し直す</button>
-    <button id="btn-mark-save" class="btn btn-primary btn-big" type="button">保存</button>
+    <div id="msg-mark" class="msg" role="status"></div>
   </section>
 
-  <!-- ===== 学習 ===== -->
+  <!-- ===== 作業場（タブ「作業場」。仕様 8.5） ===== -->
   <section id="screen-study" class="screen" hidden>
     <div id="study-top" class="study-top">
       <div class="study-head">
@@ -123,10 +106,29 @@
       </div>
       <button id="txt-sync-status" class="sync-status" type="button" hidden></button>
       <div id="txt-progress" class="progress"></div>
-      <div class="sec-nav">
-        <button id="btn-sec-prev" class="btn btn-nav" type="button">◀前</button>
-        <button id="btn-sec-label" class="btn btn-sec-label" type="button"></button>
-        <button id="btn-sec-next" class="btn btn-nav" type="button">次▶</button>
+      <!-- 作業場の小さなタブ（仕様 8.5.1） -->
+      <div class="work-tabs">
+        <button id="btn-work-article" class="work-tab" type="button" aria-pressed="true">本文分割</button>
+        <button id="btn-work-section" class="work-tab" type="button" aria-pressed="false">節分割</button>
+      </div>
+      <!-- 本文分割（仕様 8.5.2） -->
+      <div id="panel-work-article" class="work-panel">
+        <div class="split-sel-row">
+          <label class="split-sel-label" for="sel-split-block">この節</label>
+          <select id="sel-split-block" class="split-sel"></select>
+        </div>
+        <div id="panel-article-text" class="text-panel"></div>
+        <div id="txt-hint-article" class="memo-hint"></div>
+      </div>
+      <!-- 節分割（仕様 8.5.3） -->
+      <div id="panel-work-section" class="work-panel" hidden>
+        <div class="sec-nav">
+          <button id="btn-sec-prev" class="btn btn-nav" type="button">◀前</button>
+          <button id="btn-sec-label" class="btn btn-sec-label" type="button"></button>
+          <button id="btn-sec-next" class="btn btn-nav" type="button">次▶</button>
+        </div>
+        <div id="panel-section-text" class="text-panel"></div>
+        <div id="txt-hint-section" class="memo-hint"></div>
       </div>
       <div class="range-row">
         <button id="btn-mark-start" class="mark-btn mark-start" type="button"><span>ここを</span><span>開始</span></button>
@@ -184,58 +186,27 @@
           </div>
         </div>
       </div>
-      <div class="controls">
-        <button id="btn-stop" class="btn btn-ctl" type="button" aria-label="停止">■</button>
-        <button id="btn-play" class="btn btn-play" type="button" aria-label="再生">▶</button>
-        <button id="btn-all" class="btn btn-ctl" type="button" aria-label="全範囲">⇤⇥<small>全範囲</small></button>
-        <button id="btn-prev-chunk" class="btn btn-ctl" type="button">◀◀<small>戻る</small></button>
-        <button id="btn-next-chunk" class="btn btn-ctl btn-next" type="button">区間移動<small id="txt-next-step">＋4秒</small></button>
+      <div class="controls-2">
+        <button id="btn-stop" class="btn btn-ctl2" type="button">■ 停止</button>
+        <button id="btn-all" class="btn btn-ctl2" type="button">全範囲</button>
       </div>
-      <div class="rate-row">
-        <button id="btn-rate-12" class="opt-btn rate-btn" type="button" data-rate="1.2">1.2</button>
-        <button id="btn-rate-11" class="opt-btn rate-btn" type="button" data-rate="1.1">1.1</button>
-        <button id="btn-rate-10" class="opt-btn rate-btn" type="button" data-rate="1.0">1.0</button>
-        <button id="btn-rate-09" class="opt-btn rate-btn" type="button" data-rate="0.9">0.9</button>
-        <button id="btn-rate-08" class="opt-btn rate-btn" type="button" data-rate="0.8">0.8</button>
-      </div>
-      <!-- 区間メモ（仕様 6.8・8.5） -->
-      <div id="card-memo" class="memo-card">
-        <div class="memo-sid-row">
-          <label class="memo-sid-label" for="sel-memo-sid">この文</label>
-          <select id="sel-memo-sid" class="memo-sid"></select>
-        </div>
-        <button id="btn-memo-save" class="btn btn-memo-save" type="button">区間保存</button>
-        <div id="txt-memo-title" class="memo-title"></div>
-        <div id="list-memos" class="memo-list"></div>
-        <div id="txt-memo-empty" class="memo-empty" hidden></div>
-        <div id="txt-hint-memo" class="memo-hint"></div>
-      </div>
-      <div class="tools-title">再生の設定</div>
-      <div id="panel-tools" class="tools">
-        <div class="tool-row">
-          <span class="tool-label">移動時間</span>
-          <button id="btn-move-minus" class="btn btn-mini" type="button">−</button>
-          <input id="input-move" class="input input-move" type="number" min="1" max="60" step="1" inputmode="numeric">
-          <span class="tool-unit">秒</span>
-          <button id="btn-move-plus" class="btn btn-mini" type="button">＋</button>
-        </div>
-        <div class="tool-row">
-          <span class="tool-label">間（秒）</span>
-          <button id="btn-gap-0" class="opt-btn gap-btn" type="button" data-gap="0">なし</button>
-          <button id="btn-gap-1" class="opt-btn gap-btn" type="button" data-gap="1">1</button>
-          <button id="btn-gap-2" class="opt-btn gap-btn" type="button" data-gap="2">2</button>
-          <button id="btn-gap-3" class="opt-btn gap-btn" type="button" data-gap="3">3</button>
-          <button id="btn-gap-5" class="opt-btn gap-btn" type="button" data-gap="5">5</button>
-        </div>
+      <div class="save-row">
+        <button id="btn-section-save" class="btn btn-section-save" type="button">節保存</button>
+        <button id="btn-section-add" class="btn btn-section-add" type="button">区間を足す</button>
+        <button id="btn-memo-save" class="btn btn-memo-save" type="button" hidden>文保存</button>
       </div>
       <div id="msg-study" class="msg msg-tight" role="status"></div>
     </div>
   </section>
 
-  <!-- ===== 単語（タブ「単語」。仕様 8.10） ===== -->
+  <!-- ===== 学習（タブ「学習」。仕様 8.10） ===== -->
   <section id="screen-words" class="screen" hidden>
     <div class="words-head">
-      <div id="txt-words-title" class="words-title"></div>
+      <div class="words-nav">
+        <button id="btn-words-prev" class="icon-btn words-arrow" type="button" aria-label="前の区間">‹</button>
+        <div id="txt-words-title" class="words-title"></div>
+        <button id="btn-words-next" class="icon-btn words-arrow" type="button" aria-label="次の区間">›</button>
+      </div>
       <div id="txt-words-progress" class="progress"></div>
     </div>
     <div id="list-words" class="words"></div>
@@ -260,6 +231,16 @@
       <div class="row-2">
         <button id="btn-deadline-5" class="opt-btn" type="button">金曜</button>
         <button id="btn-deadline-6" class="opt-btn" type="button">土曜</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="step">くり返しの間（無音）</div>
+      <div class="row-gap">
+        <button id="btn-gap-0" class="opt-btn gap-btn" type="button" data-gap="0">なし</button>
+        <button id="btn-gap-1" class="opt-btn gap-btn" type="button" data-gap="1">1秒</button>
+        <button id="btn-gap-2" class="opt-btn gap-btn" type="button" data-gap="2">2秒</button>
+        <button id="btn-gap-3" class="opt-btn gap-btn" type="button" data-gap="3">3秒</button>
+        <button id="btn-gap-5" class="opt-btn gap-btn" type="button" data-gap="5">5秒</button>
       </div>
     </div>
     <div class="card">
@@ -290,16 +271,22 @@
   </div>
 </div>
 
-<!-- ===== 小さな再生バー（単語タブのときだけ。仕様 8.10） ===== -->
+<!-- ===== 固定の再生バー（学習・作業場。仕様 8.10） ===== -->
 <div id="mini-player" class="mini-player" hidden>
   <div class="mini-bar"><div id="bar-mini-fill" class="bar-fill"></div></div>
   <div id="msg-words" class="msg msg-mini" role="status"></div>
   <div class="mini-row">
-    <button id="btn-mini-prev" class="mini-btn" type="button" aria-label="前の区間">‹<small>前</small></button>
     <button id="btn-mini-sec" class="mini-sec" type="button" aria-label="節を選ぶ"><span id="txt-mini-label" class="mini-label"></span><span id="txt-mini-range" class="mini-range"></span></button>
+    <button id="btn-mini-prev-break" class="mini-btn" type="button" aria-label="前の区切りへ">◀◀<small>前の区切り</small></button>
     <button id="btn-mini-play" class="mini-play" type="button" aria-label="再生">▶</button>
-    <button id="btn-mini-next-chunk" class="mini-move" type="button">区間移動<small id="txt-mini-step">＋4秒</small></button>
-    <button id="btn-mini-next" class="mini-btn" type="button" aria-label="次の区間">›<small>次</small></button>
+    <button id="btn-mini-next-break" class="mini-move" type="button" aria-label="次の区切りへ">次の区切り<small>▶▶</small></button>
+  </div>
+  <div class="mini-rates">
+    <button id="btn-mini-rate-12" class="opt-btn mini-rate-btn" type="button" data-rate="1.2">1.2</button>
+    <button id="btn-mini-rate-11" class="opt-btn mini-rate-btn" type="button" data-rate="1.1">1.1</button>
+    <button id="btn-mini-rate-10" class="opt-btn mini-rate-btn" type="button" data-rate="1.0">1.0</button>
+    <button id="btn-mini-rate-09" class="opt-btn mini-rate-btn" type="button" data-rate="0.9">0.9</button>
+    <button id="btn-mini-rate-08" class="opt-btn mini-rate-btn" type="button" data-rate="0.8">0.8</button>
   </div>
 </div>
 
@@ -309,10 +296,10 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C4 4.7 4.7 4 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M13 4h5.5c.8 0 1.5.7 1.5 1.5v13c0 .8-.7 1.5-1.5 1.5H13z"/></svg><span>記事</span>
   </button>
   <button id="tab-play" class="tab" type="button" data-tab="play">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5v7l5.5-3.5z" class="fill"/></svg><span>再生</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.5" cy="17.5" r="2.8"/><circle cx="17.5" cy="17.5" r="2.8"/><path d="M8.6 15.6L18 4M15.4 15.6L6 4"/></svg><span>作業場</span>
   </button>
   <button id="tab-words" class="tab" type="button" data-tab="words">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 10.5h14M5 15h9M5 19.5h6"/></svg><span>単語</span>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 10.5h14M5 15h9M5 19.5h6"/></svg><span>学習</span>
   </button>
   <button id="tab-mark" class="tab" type="button" data-tab="mark">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h3M17 12h3M10 12h4"/><path d="M8.5 6v12M15.5 6v12"/></svg><span>区切り</span>

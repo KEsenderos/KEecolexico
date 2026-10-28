@@ -1,12 +1,12 @@
 /* js/config.js / KEecolexico の定数（RE.Config）。KEecoloop v2.10.1 の config.js を元に、名前・版・保存キーを変え、KX・KXMSG を追加 */
-/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v0.10.1 */
 (function () {
   'use strict';
   window.RE = window.RE || {};
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '0.9.1',
+    APP_VERSION: '0.10.1',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -100,16 +100,9 @@
       DEADLINE_DEFAULT: 6,
       WEEKDAY_LABELS: ['日', '月', '火', '水', '木', '金', '土'],
       DAY_START_HOUR: 4,                        // 1日の区切り（午前4時）
-      MARK_LEAD_SEC: 1,                         // 記録のボタン（ここから・節中断・中断終了・節END・次節START）を押した位置から戻す秒数
+      // v0.10 で MARK_LEAD_SEC・MARK_UNDO_MAX・MARK_LABELS・SEEK_SEC は廃止（記録画面の操作をやめたため）
       PART_LETTERS: 'ABCDEFGHIJ',               // 区間の呼び名。1つの節の区間は最大この文字数（10）
-      MARK_UNDO_MAX: 50,                        // 「1つ取り消す」で戻せる回数
-      MARK_LABELS: {
-        HERE: 'ここから：{name}', ALL: 'すべて記録しました',
-        BREAK: '節中断', RESUME: '中断終了',
-        END: '節END', NEXT_START: '次節START：{name}'
-      },
       ADJUST_SEC: 1,                            // 微調整ボタン1回の秒数
-      SEEK_SEC: 5,                              // 記録画面の −5秒／＋5秒
       SECTION_NONE: 'B-NONE',
       CSV_ACCEPT: '.csv,text/csv,text/comma-separated-values',
       TITLE_MAX: 40,                            // 記事名の初期値の最大文字数
@@ -122,7 +115,7 @@
       SYNC_FORMAT: 1,                           // 受け渡しファイルの形の版
       SYNC_DEVICE_OTHER: '別の端末',             // iPhone・iPad・Mac のどれでもないときの呼び名
       MEMO_MAX_PER_SECTION: 30,                 // 1つの節に保存できる区間メモの数
-      MEMO_SID_TEXT_MAX: 18,                    // 「この文」の選択肢に出す、文の先頭の文字数
+      STORAGE_KEY_WORKTAB: 'kx.workTab',        // 作業場の小さなタブ（'article'｜'section'）
       TXT_ACCEPT: '.txt,text/plain'
     }),
 
@@ -137,7 +130,7 @@
       SAVE_ERROR: '保存できませんでした。iPhoneの空き容量を確認してください',
       LOADING: '音声を読み込み中…',
       LOAD_ERROR: '音声を読み込めませんでした。記事を削除して、もう一度追加してください',
-      NEED_MARK: '先に、各節の始まりの位置を記録してください',
+      NEED_MARK: '先に、作業場の「本文分割」で節の範囲を保存してください',
       NO_AUDIO_SECTION: 'この節は音声と結び付いていません（とばした節）',
       MARK_ORDER: '前後の区間と重ならない位置にしてください',
       MARK_PART_MAX: '1つの節の区間は10までです',
@@ -145,7 +138,6 @@
       ALL_DONE: 'この記事はすべて完了しました',
       DELETE_CONFIRM: 'もう一度押すと削除します',
       DELETED: '削除しました',
-      REACHED_PART_END: 'この区間の終わりです',
       DRIVE_NEED_SETTINGS: '設定画面で、GASのURLと合言葉を入れてください',
       DRIVE_LOADING_LIST: 'ドライブの一覧を読み込み中…',
       DRIVE_EMPTY: 'KEecolexicoフォルダに記事のフォルダがありません',
@@ -183,14 +175,25 @@
       SYNC_RETRY_HINT: '（ここを押すと、もう一度試します）',
       UPDATE_NOTE: '記事・区切り・完了・区間メモは消えません（再生は止まります）',
       MEMO_SID_LABEL: 'この文',
-      MEMO_SAVE: '区間保存',
-      MEMO_TITLE: '区間メモ（{name}）',
-      MEMO_EMPTY: '保存した区間はまだありません',
-      MEMO_SAVED: '「{sid}」の区間を保存しました',
-      MEMO_REPLACED: '「{sid}」の区間を、今の範囲に置き換えました',
+      SPLIT_BLOCK_LABEL: 'この節',
+      MEMO_SAVE: '文保存（{sid}）',
+      SECTION_SAVE: '節保存',
+      SECTION_ADD: '区間を足す',
+      SECTION_SAVED: '{name}の範囲を保存しました',
+      PART_ADDED: '{name}を足しました',
+      BREAK_LAST: '最後の区切りです',
+      BREAK_FIRST: '最初の区切りです',
+      WORK_ARTICLE: '本文分割',
+      WORK_SECTION: '節分割',
+      MARKS_SUMMARY: '保存した節 {done}／{total}・文 {memos}',
+      MARKS_NO_MEMO: '文の区切りはまだありません（作業場の「節分割」で作れます）',
+      MARK_NOT_YET: '—（まだ）',
+      HINT_SECTION: '※ 文を押して選び、開始・終了をその文に合わせて「文保存」。保存すると次の文が選ばれ、範囲も続きから始まります',
+      HINT_ARTICLE: '※ 節を選び、再生しながら節の終わりで「ここを終了」→「節保存」。保存すると次の節が選ばれ、範囲も続きから始まります',
+      MEMO_SAVED: '「{sid}」を保存しました',
+      MEMO_REPLACED: '「{sid}」を今の範囲に置き換えました',
       MEMO_FULL: 'この節の区間メモは30件までです。いらないものを×で消してください',
       MEMO_OUT_OF_RANGE: 'この区間メモは、今の区切りの範囲の外にあります（区切りを直したため）。×で消して、保存し直してください',
-      HINT_MEMO: '※ 1つの文に開始・終了を合わせて「区間保存」。保存すると、次の文の範囲が続きから始まります。単語タブの文番号（── 3-1 ▶ ──）を押すと、その文をくり返します',
       BACKUP_FILE_PREFIX: 'keecolexico-backup-',
       BACKUP_EXPORTED: '書き出しました：{name}（{n}件の記事）',
       BACKUP_EMPTY: '書き出す記事がありません',

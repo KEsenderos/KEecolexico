@@ -1,5 +1,5 @@
 /* js/main.js — 起動と各操作のまとめ役（RE.Main）。画面の描画は RE.UI、再生は RE.Engine、保存は RE.Db に任せる */
-/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v0.10.1 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -105,22 +105,35 @@
     return { start: pt.s, end: pt.e };
   }
 
-  // いま繰り返す範囲 {s, e}（仕様 6.5.1）。区間が再生できなければ null
+  // いま繰り返す範囲 {s, e}（仕様 6.5.1）。枠の中に収める。枠が無ければ null
   function currentRange() {
-    var st = ST(), sec = sectionRange_(st.blockId, st.partIndex);
-    if (!sec) return null;
-    var s = Math.min(Math.max(st.rangeStart, sec.start), sec.end - 1);
-    var e = Math.min(Math.max(st.rangeEnd, s + 1), sec.end);
+    var st = ST(), b = bounds_();
+    if (!b) return null;
+    var split = isSplit_();
+    var s = Math.min(Math.max(split ? st.splitStart : st.rangeStart, b.start), b.end - 1);
+    var e = Math.min(Math.max(split ? st.splitEnd : st.rangeEnd, s + 1), b.end);
     return { s: s, e: e };
   }
 
   // 今の区間 {start, end}
   function partRange_() { return sectionRange_(ST().blockId, ST().partIndex); }
 
+  // 作業場の「本文分割」でエンジンを使っているか
+  function isSplit_() { return ST().engineMode === 'split'; }
+
+  // 音声の終わり（整数秒）
+  function durEnd_() { var a = ST().article; return a ? Math.floor(a.durationSec || 0) : 0; }
+
+  // 範囲の枠（仕様 6.5.1）。本文分割は音声全体、それ以外は今の区間
+  function bounds_() {
+    if (isSplit_()) { var d = durEnd_(); return d > 0 ? { start: 0, end: d } : null; }
+    return partRange_();
+  }
+
   // 範囲を変えてエンジンに渡す。restart が true なら、再生中は頭から再生し直す。play が true なら停止中でも頭から再生する
   function setRange_(s, e, restart, play) {
     var st = ST();
-    st.rangeStart = s; st.rangeEnd = e;
+    if (isSplit_()) { st.splitStart = s; st.splitEnd = e; } else { st.rangeStart = s; st.rangeEnd = e; }
     applyRange_(restart);
     if (play && RE.Engine.getState() !== S.PLAYING) RE.Engine.playFromStart();
     RE.UI.renderStudyTop();
@@ -223,6 +236,7 @@
   function memoChanged_() {
     RE.UI.renderStudyTop();
     RE.UI.renderWordList(true);
+    if (ST().screen === 'screen-mark') RE.UI.renderMarks();
   }
 
   // 失敗の理由の文（GASが返した記号と説明）
@@ -293,12 +307,15 @@
   // ドライブの中身に置き換えたあと、今の画面を開き直す（仕様 8.8）
   function reopenAfterSync_(text) {
     var st = ST(), scr = st.screen, a = st.article;
-    if (scr === 'screen-mark') {
-      leaveMark_();
-      if (a.marked && st.markFromSaved) openMark_(true); else if (a.marked) openStudyLast_(); else openMark_(false);
-    }
-    else if (scr === 'screen-study' || scr === 'screen-words') {
-      if (a.marked) { openStudyLast_(); if (scr === 'screen-study') RE.UI.showScreen('screen-study'); } else openMark_(false);
+    if (scr === 'screen-study') {
+      if (st.workTab === 'section') { st.blockId = ''; st.partIndex = -1; }
+      openWork_();
+    } else if (scr === 'screen-words') {
+      if (a.marked) openStudyLast_(); else openWork_();
+    } else if (scr === 'screen-mark') {
+      st.blockId = ''; st.partIndex = -1;
+      ensureStudyBlock_();
+      RE.UI.renderMarks();
     }
     showSyncMsg_(text);
   }
@@ -384,7 +401,7 @@
 
   // エンジンからのエラー
   function onEngineError_(code) {
-    var scr = ST().screen === 'screen-mark' ? 'mark' : 'study';
+    var scr = 'study';
     if (code === C.ERR.PLAY_BLOCKED) RE.UI.showMessage(scr, C.MSG.PLAY_BLOCKED, true);
     else if (code === C.ERR.INTERRUPTED) RE.UI.showMessage(scr, C.MSG.INTERRUPTED);
     else if (code === C.ERR.TOO_LONG) RE.UI.showMessage(scr, C.MSG.DOUBLE_TOO_LONG, true);
@@ -394,7 +411,7 @@
   function refreshPosition_() {
     if (document.hidden) return;
     var scr = ST().screen;
-    if (scr !== 'screen-study' && scr !== 'screen-words' && scr !== 'screen-mark') return;
+    if (scr !== 'screen-study' && scr !== 'screen-words') return;
     if (!ST().loadedArticleId) return;
     RE.UI.updatePosition(RE.Engine.getPositionSec());
   }
@@ -429,7 +446,7 @@
   // 再生／一時停止（命令の名前ではなく、今の状態で切り替える）
   function remoteToggle_() {
     if (!remoteAllowed_()) return;
-    if (ST().screen === 'screen-mark') handlers.onMarkPlay(); else handlers.onPlayPause();
+    handlers.onPlayPause();
   }
 
   function start() {
@@ -446,8 +463,9 @@
         if (ST().playerState === S.PLAYING) RE.Engine.pause(); else RE.Engine.stop();
       },
       onNext: function () {
-        if (!remoteAllowed_() || (ST().screen !== 'screen-study' && ST().screen !== 'screen-words')) return;
-        handlers.onNextChunk();
+        var scr = ST().screen;
+        if (!remoteAllowed_() || (scr !== 'screen-study' && scr !== 'screen-words' && scr !== 'screen-mark')) return;
+        handlers.onNextBreak();   // 「次へ」＝次の区切りへ（仕様 6.5.2）
       }
     });
     RE.UI.applyFontSize();
@@ -460,7 +478,7 @@
     });
   }
 
-  // 記事を開く。mode: 'auto'（記録済みなら学習、未記録なら記録）／'mark'（必ず記録画面）
+  // 記事を開く。mode: 'auto'（記録済みなら学習、未記録なら作業場の本文分割）／'mark'（区切りタブ）
   function openArticle_(id, mode) {
     var st = ST();
     RE.UI.clearMessage('library');
@@ -469,7 +487,9 @@
       var view = buildView_(a.articleText, a.csvText);
       syncSections_(a, view);
       migrateSync_(a);
+      if (st.engineMode === 'split') { RE.Engine.stop(); st.engineMode = 'study'; }
       st.article = a; st.view = view;
+      st.blockId = ''; st.partIndex = -1; st.splitBlockId = ''; st.openMarkBlockId = ''; st.markDeleteKey = '';
       var pull = Promise.resolve('off');
       if (canSync_(a)) { st.syncStatus = 'checking'; pull = queueSync_(function () { return pullSync_(a); }); }
       else st.syncStatus = 'off';
@@ -496,43 +516,62 @@
         saveArticle_();
         RE.MediaSession.setMetadata(a.title);
         RE.MediaSession.register();
-        if (mode === 'mark' || !a.marked) {
-          openMark_(mode === 'mark' && a.marked);
-          if (mode !== 'mark' && id !== newArticleId_) RE.UI.showMessage('mark', M.NEED_MARK);
-          newArticleId_ = '';
+        if (mode === 'mark') {
+          ensureStudyBlock_();
+          RE.UI.showScreen('screen-mark');
+          RE.UI.clearMessage('mark');
+          RE.UI.renderMarks();
+        } else if (!a.marked) {
+          openWork_();
+          if (id !== newArticleId_) RE.UI.showMessage('study', M.NEED_MARK);
         } else {
           openStudyLast_();
         }
+        newArticleId_ = '';
         if (st.syncAppliedFrom) { showSyncMsg_(fill(M.SYNC_APPLIED, { device: st.syncAppliedFrom })); st.syncAppliedFrom = null; }
       });
     });
   }
 
-  // ===== 学習 =====
+  // ===== 学習・作業場 =====
 
-  // 最後に開いた区間（無ければ最初の再生できる区間）で学習画面を開く
-  function openStudyLast_() {
-    var a = ST().article, nav;
-    ST().blockId = ''; ST().partIndex = -1;
-    nav = navList();
-    var pick = null;
+  // 最後に開いた区間（無ければ最初の再生できる区間）
+  function pickLast_() {
+    var a = ST().article, nav = navList(), pick = null;
     nav.forEach(function (n) { if (!pick && n.blockId === a.lastBlockId && n.part === (a.lastPart || 0)) pick = n; });
     if (!pick) nav.forEach(function (n) { if (!pick && n.blockId === a.lastBlockId) pick = n; });
     if (!pick) nav.forEach(function (n) { if (!pick && n.part >= 0) pick = n; });
-    if (!pick) pick = nav[0];
+    return pick || nav[0];
+  }
+
+  // 最後に開いた区間で学習タブを開く
+  function openStudyLast_() {
+    ST().blockId = ''; ST().partIndex = -1;
+    var pick = pickLast_();
     openStudy_(pick.blockId, pick.part);
   }
 
-  // 学習を開く（タブ「単語」。仕様 8.9）。記録画面のエンジンの設定が残っていれば元に戻す
+  // 学習タブを開く（仕様 8.10）。本文分割のエンジンの設定が残っていれば元に戻す
   function openStudy_(blockId, part) {
     ST().sheetOpen = false;
-    if (ST().engineMode === 'mark') leaveMark_();
+    leaveSplit_();
     RE.UI.showScreen('screen-words');
     RE.UI.clearMessage('study');
     goSection_(blockId, part);
   }
 
-  // 区間を切り替える（再生中なら新しい区間の頭から再生を続ける）
+  // 今の区間が並びに無ければ（まだ開いていない・区切りを直した）、最後に開いた区間を開く（画面は変えない）
+  function ensureStudyBlock_() {
+    var st = ST(), a = st.article;
+    if (!a || !a.marked) return;
+    var ok = navList().some(function (n) { return n.blockId === st.blockId && n.part === st.partIndex; });
+    if (ok) return;
+    st.blockId = ''; st.partIndex = -1;
+    var pick = pickLast_();
+    if (pick) goSection_(pick.blockId, pick.part);
+  }
+
+  // 区間を切り替える。範囲は区間全体（仕様 6.5.2）。再生中なら新しい区間の頭から再生を続ける
   function goSection_(blockId, part) {
     var st = ST(), a = st.article;
     var sameBlock = st.blockId === blockId;
@@ -540,11 +579,12 @@
     st.partIndex = typeof part === 'number' ? part : -1;
     var sec = sectionRange_(blockId, st.partIndex);
     st.rangeStart = sec ? sec.start : 0;
-    st.rangeEnd = sec ? Math.min(sec.start + C.END_DEFAULT_SEC, sec.end) : 0;
+    st.rangeEnd = sec ? sec.end : 0;
     if (blockId !== K.SECTION_NONE && (a.lastBlockId !== blockId || a.lastPart !== st.partIndex)) {
       a.lastBlockId = blockId; a.lastPart = st.partIndex; saveArticle_();
     }
-    if (sec) applyRange_(true);
+    if (isSplit_()) { /* 本文分割の範囲はそのまま */ }
+    else if (sec) applyRange_(true);
     else {
       RE.Engine.stop();
       RE.UI.showMessage('study', blockId === K.SECTION_NONE ? '' : M.NO_AUDIO_SECTION);
@@ -555,121 +595,142 @@
     else { st.scrollPos['screen-words'] = 0; if (st.screen === 'screen-words') window.scrollTo(0, 0); }
   }
 
-  // ===== 記録（仕様 8.4） =====
+  // 作業場の小さなタブを覚える（仕様 8.5.1）
+  function setWorkTab_(name) {
+    ST().workTab = name;
+    try { localStorage.setItem(K.STORAGE_KEY_WORKTAB, name); } catch (e) { /* 無視 */ }
+  }
 
-  // 記録画面を開く。fromSaved が true なら保存済みの区間を並べて始める
-  function openMark_(fromSaved) {
+  // 作業場タブを開く。まだ節が1つも無い記事は本文分割（覚えた値は変えない）
+  function openWork_() {
     var st = ST(), a = st.article;
-    enterMarkEngine_();
-    st.markArticleId = a.articleId;
-    st.markParts = a.sections.map(function (s) {
-      return fromSaved ? s.parts.map(function (pt) { return { s: pt.s, e: pt.e }; }) : undefined;
-    });
-    st.markIndex = fromSaved ? a.sections.length : 0;
-    st.markState = 'idle';
-    st.markHistory = [];
-    st.markFromSaved = !!fromSaved;
-    st.markResetPending = false;
-    RE.UI.showScreen('screen-mark');
-    RE.UI.clearMessage('mark');
-    RE.UI.renderMark();
-    RE.UI.updatePosition(0);
+    var tab = a.marked ? st.workTab : 'article';
+    ST().sheetOpen = false;
+    RE.UI.showScreen('screen-study');
+    if (tab === 'article') { st.workTab = 'article'; enterSplit_(); }
+    else { leaveSplit_(); ensureStudyBlock_(); }
+    RE.UI.renderStudyTop();
   }
 
-  // 記録画面のためにエンジンを設定する（倍速1・間0・音声全体。設定値は書き換えない）
-  function enterMarkEngine_() {
-    var a = ST().article;
-    RE.Engine.stop();
-    RE.Engine.setRate(1);
-    RE.Engine.setGap(0);
-    RE.Engine.setSection(0, a.durationSec, 'A');
-    ST().engineMode = 'mark';
+  // 節の並びでの番号（無ければ -1）
+  function blockIndex_(blockId) {
+    var v = ST().view; if (!v) return -1;
+    for (var i = 0; i < v.blocks.length; i++) if (v.blocks[i].id === blockId) return i;
+    return -1;
   }
 
-  // 途中の記録のまま、記録画面に戻る（タブを移って戻ったとき。仕様 8.9）
-  function resumeMark_() {
-    enterMarkEngine_();
-    RE.UI.showScreen('screen-mark');
-    RE.UI.renderMark();
-    RE.UI.updatePosition(0);
+  // 本文分割で、最初に選ぶ節：区間が無い最初の節。全部あれば今の節（仕様 8.5.2）
+  function defaultSplitBlock_() {
+    var st = ST(), a = st.article, v = st.view;
+    for (var i = 0; i < a.sections.length; i++) if (!a.sections[i].parts.length) return a.sections[i].id;
+    if (blockIndex_(st.blockId) >= 0) return st.blockId;
+    return v.blocks.length ? v.blocks[0].id : '';
   }
 
-  // 記録画面を出るとき、再生の設定を元に戻す
-  function leaveMark_() {
-    RE.Engine.stop();
-    RE.Engine.setGap(ST().gapSec);
-    RE.Engine.setRate(ST().rate);
-    ST().engineMode = 'study';
+  // 本文分割の範囲の初期値：選んだ節より前で区間のある最後の節の終わり 〜 音声の終わり（仕様 8.5.2）
+  function splitDefaults_() {
+    var st = ST(), a = st.article, idx = blockIndex_(st.splitBlockId), s = 0;
+    for (var i = idx - 1; i >= 0; i--) {
+      var ps = a.sections[i].parts;
+      if (ps.length) { s = ps[ps.length - 1].e; break; }
+    }
+    st.splitStart = s;
+    st.splitEnd = durEnd_();
   }
 
-  // 記録画面の再生範囲を q 秒〜最後にする
-  function markSeekTo_(q) {
-    var a = ST().article, playing = RE.Engine.getState() === S.PLAYING;
-    RE.Engine.setSection(q, a.durationSec, 'A', playing);
-    if (playing) RE.Engine.playFromStart(); else RE.Engine.stop();
-    RE.UI.updatePosition(q);
-  }
-
-  // 「1つ取り消す」用に、今の状態の控えを取る
-  function markSnapshot_() {
+  // 本文分割に入る（範囲の枠＝音声全体。仕様 8.5.2）
+  function enterSplit_() {
     var st = ST();
-    st.markHistory.push({
-      parts: st.markParts.map(function (ps) { return ps === undefined ? undefined : ps.map(function (pt) { return { s: pt.s, e: pt.e }; }); }),
-      index: st.markIndex, state: st.markState
-    });
-    if (st.markHistory.length > K.MARK_UNDO_MAX) st.markHistory.shift();
+    RE.Engine.stop();
+    st.engineMode = 'split';
+    st.splitBlockId = defaultSplitBlock_();
+    splitDefaults_();
+    applyRange_(false);
   }
 
-  // 記録した区間を時間の順に並べた一覧 [{bi, pi, pt}]
-  function markFlat_() {
-    var out = [];
-    ST().markParts.forEach(function (ps, bi) { (ps || []).forEach(function (pt, pi) { out.push({ bi: bi, pi: pi, pt: pt }); }); });
+  // 本文分割から出る（学習の範囲＝今の区間をエンジンに戻す）
+  function leaveSplit_() {
+    var st = ST();
+    if (st.engineMode !== 'split') return;
+    RE.Engine.stop();
+    st.engineMode = 'study';
+    if (partRange_()) applyRange_(false);
+  }
+
+  // 区間 [s, e] を、節 idx の区間として置けるか（前後の節の区間と重ならない・音声の中。仕様 8.5.2）
+  // fromS が数なら、その節の区間もそこより後ろであること（区間を足すとき）
+  function fitsOrder_(idx, s, e, fromS) {
+    var a = ST().article, prevEnd = 0, nextStart = durEnd_(), i;
+    for (i = idx - 1; i >= 0; i--) { var p = a.sections[i].parts; if (p.length) { prevEnd = p[p.length - 1].e; break; } }
+    for (i = idx + 1; i < a.sections.length; i++) { var q = a.sections[i].parts; if (q.length) { nextStart = q[0].s; break; } }
+    if (typeof fromS === 'number') prevEnd = Math.max(prevEnd, fromS);
+    return s >= prevEnd && e <= nextStart && s < e && e <= durEnd_();
+  }
+
+  // 次の区切り・前の区切りの並び（仕様 6.9.1）
+  function breakList_() {
+    var v = ST().view, out = [];
+    if (!v) return out;
+    v.blocks.forEach(function (b, bi) {
+      var sec = sectionEntry(b.id);
+      if (!sec || !sec.parts.length) return;
+      var memos = memosOf_(b.id).filter(function (m) {
+        var r = sectionRange_(b.id, m.part);
+        return r && m.s >= r.start && m.e <= r.end;
+      });
+      if (memos.length) {
+        memos.forEach(function (m) {
+          out.push({ blockId: b.id, bi: bi, part: m.part, s: m.s, e: m.e, memoId: m.id, sid: m.sid, label: partLabel_(bi, m.part) + ' ' + m.sid });
+        });
+      } else {
+        sec.parts.forEach(function (pt, p) {
+          out.push({ blockId: b.id, bi: bi, part: p, s: pt.s, e: pt.e, memoId: '', sid: '', label: partLabel_(bi, p) });
+        });
+      }
+    });
+    out.sort(function (x, y) { return (x.bi - y.bi) || (x.part - y.part) || (x.s - y.s); });
     return out;
   }
 
-  // これまでに記録したすべての s・e の最大
-  function markLast_() {
-    var last = 0;
-    markFlat_().forEach(function (x) { last = Math.max(last, x.pt.s, x.pt.e === null ? 0 : x.pt.e); });
-    return last;
+  // 今の位置と区切りを比べる（負＝区切りが前、正＝区切りが後ろ）
+  function compareBreak_(b) {
+    var st = ST(), v = st.view;
+    var bi = st.blockId === K.SECTION_NONE ? v.blocks.length : blockIndex_(st.blockId);
+    return (b.bi - bi) || (b.part - st.partIndex) || (b.s - st.rangeStart);
   }
 
-  // 開いている区間（今の節の最後の区間で、終了が未定のもの）
-  function markOpenPart_() {
-    var st = ST(), bi = st.markIndex - 1;
-    if (st.markState !== 'open' || bi < 0) return null;
-    var ps = st.markParts[bi];
-    return ps && ps.length ? ps[ps.length - 1] : null;
-  }
-
-  // ボタンを押した時刻（押す遅れを補う）
-  function markTapTime_() {
-    return Math.max(0, Math.floor(RE.Engine.getPositionSec()) - K.MARK_LEAD_SEC);
-  }
-
-  // 次の節に新しい区間を作って進む（ここから・次節START）
-  function markStartNext_() {
+  // 区切りへ移って、状態に関係なく頭から再生する（仕様 6.9.2）
+  function goBreak_(b) {
     var st = ST();
-    if (st.markIndex >= st.markParts.length) return;
-    markSnapshot_();
-    var t = Math.max(markTapTime_(), markLast_());
-    var open = markOpenPart_();
-    if (open) { if (t <= open.s) t = open.s + 1; open.e = t; }
-    st.markParts[st.markIndex] = [{ s: t, e: null }];
-    st.markIndex++;
-    st.markState = 'open';
-    RE.UI.clearMessage('mark');
-    RE.UI.renderMark();
+    if (st.blockId !== b.blockId || st.partIndex !== b.part) goSection_(b.blockId, b.part);
+    RE.UI.clearMessage('study');
+    setRange_(b.s, b.e, false, false);
+    RE.Engine.playFromStart();
+    if (b.memoId) st.memoSid = b.sid;
+    memoChanged_();
   }
 
-  // 前後の区間（終了が未定ならその開始）を返す
-  function markNeighbors_(bi, pi) {
-    var flat = markFlat_(), k, idx = -1;
-    for (k = 0; k < flat.length; k++) if (flat[k].bi === bi && flat[k].pi === pi) { idx = k; break; }
-    return { prev: idx > 0 ? flat[idx - 1].pt : null, next: idx >= 0 && idx < flat.length - 1 ? flat[idx + 1].pt : null };
+  // 本文分割で区切りの移動・節の選択をしたときは、節分割に切り替える
+  function toSectionWork_() {
+    var st = ST();
+    if (!isSplit_()) return;
+    leaveSplit_();
+    setWorkTab_('section');
   }
 
-    // ===== 取り込み（共通） =====
+  // 区切りタブ：微調整・削除のあと、学習の範囲を合わせる
+  function afterMarkEdit_(blockId) {
+    var st = ST();
+    markChanged_();
+    if (st.blockId === blockId) {
+      st.blockId = '__';   // 同じ節でも区間を開き直す
+      ensureStudyBlock_();
+      if (st.blockId === '__') { st.blockId = ''; st.partIndex = -1; RE.Engine.stop(); }
+    }
+    RE.UI.renderMarks();
+  }
+
+  // ===== 取り込み（共通） =====
 
   // 本文・CSVを確かめる。問題なければ view、だめなら null（メッセージを出す）
   function checkDraft_(draft, screenId) {
@@ -863,24 +924,22 @@
       var st = ST(), a = st.article, from = st.screen;
       if (st.driveBusy) return;
       if ((name === 'play' || name === 'words' || name === 'mark') && !a) return;
-      if (name === 'mark') {
-        if (from === 'screen-mark') return;
-        if (st.markArticleId === a.articleId) resumeMark_(); else openMark_(!!a.marked);
-        return;
-      }
-      if (from === 'screen-mark') leaveMark_();
+      if (name === 'play') { if (from !== 'screen-study') openWork_(); return; }
+      leaveSplit_();
       if (name === 'library') { openLibrary(); return; }
       if (name === 'settings') { handlers.onOpenSettings(); return; }
-      // 再生・単語
-      if (!a.marked) {
-        if (st.markArticleId === a.articleId) resumeMark_(); else openMark_(false);
-        RE.UI.showMessage('mark', M.NEED_MARK);
+      if (name === 'mark') {
+        if (from === 'screen-mark') return;
+        ensureStudyBlock_();
+        RE.UI.showScreen('screen-mark');
+        RE.UI.clearMessage('mark');
+        RE.UI.renderMarks();
         return;
       }
-      var target = name === 'play' ? 'screen-study' : 'screen-words';
-      if (!st.blockId) { openStudyLast_(); RE.UI.showScreen(target); return; }
-      RE.UI.showScreen(target);
-      if (from === 'screen-mark' && currentRange()) applyRange_(false);
+      // 学習
+      if (!a.marked) { openWork_(); RE.UI.showMessage('study', M.NEED_MARK); return; }
+      ensureStudyBlock_();
+      RE.UI.showScreen('screen-words');
       RE.UI.renderStudyTop();
     },
     onOpenSettings: function () {
@@ -987,129 +1046,171 @@
       saveNewArticle_(d, 'import');
     },
 
-    // --- 記録 ---
-    // やめる：途中の記録を捨てる。記録済みの記事なら単語タブ、まだなら記事一覧へ
-    onMarkBack: function () {
-      var a = ST().article;
-      ST().markArticleId = '';
-      leaveMark_();
-      if (a && a.marked) openStudyLast_(); else openLibrary();
-    },
-    onMarkPlay: function () {
-      if (RE.Engine.getState() === S.PLAYING) RE.Engine.pause(); else RE.Engine.play();
-    },
-    onMarkSeek: function (delta) {
-      var a = ST().article;
-      var q = Math.floor(RE.Engine.getPositionSec()) + delta;
-      q = Math.min(Math.max(q, 0), Math.max(0, Math.floor(a.durationSec) - 1));
-      markSeekTo_(q);
-    },
-    onMarkHere: function () { markStartNext_(); },
-    onMarkBreak: function () {
-      var st = ST(), bi = st.markIndex - 1;
-      if (bi < 0) return;
-      if (st.markState === 'open') {
-        var open = markOpenPart_(); if (!open) return;
-        if (st.markParts[bi].length >= K.PART_LETTERS.length) { RE.UI.showMessage('mark', M.MARK_PART_MAX, true); return; }
-        markSnapshot_();
-        open.e = Math.max(markTapTime_(), open.s + 1);
-        st.markState = 'paused';
-      } else if (st.markState === 'paused') {
-        markSnapshot_();
-        st.markParts[bi].push({ s: Math.max(markTapTime_(), markLast_()), e: null });
-        st.markState = 'open';
-      } else return;
-      RE.UI.clearMessage('mark');
-      RE.UI.renderMark();
-    },
-    onMarkEnd: function () {
+    // --- 区切りタブ（仕様 8.4） ---
+    onMarkToggle: function (blockId) {
       var st = ST();
-      if (st.markState === 'idle') { markStartNext_(); return; }
-      markSnapshot_();
-      var open = markOpenPart_();
-      if (open) open.e = Math.max(markTapTime_(), open.s + 1);
-      st.markState = 'idle';
+      st.openMarkBlockId = st.openMarkBlockId === blockId ? '' : blockId;
+      st.markDeleteKey = '';
       RE.UI.clearMessage('mark');
-      RE.UI.renderMark();
+      RE.UI.renderMarks(true);
     },
-    onMarkSkip: function () {
+    // その区間を頭から再生（確認用。学習の範囲も区間全体になる）
+    onMarkPartPlay: function (blockId, part) {
       var st = ST();
-      if (st.markIndex >= st.markParts.length) return;
-      markSnapshot_();
-      st.markParts[st.markIndex] = [];
-      st.markIndex++;
-      RE.UI.renderMark();
-    },
-    onMarkUndo: function () {
-      var st = ST(), h = st.markHistory.pop();
-      if (!h) return;
-      st.markParts = h.parts; st.markIndex = h.index; st.markState = h.state;
+      if (!sectionRange_(blockId, part)) return;
+      leaveSplit_();
       RE.UI.clearMessage('mark');
-      RE.UI.renderMark();
+      if (st.blockId !== blockId || st.partIndex !== part) goSection_(blockId, part);
+      else { var r = partRange_(); setRange_(r.start, r.end, false, false); }
+      RE.Engine.playFromStart();
+      RE.UI.renderMarks();
     },
-    onMarkAdjust: function (bi, pi, which, delta) {
-      var st = ST(), ps = st.markParts[bi], pt = ps && ps[pi];
+    // 始−1／始＋1／終−1／終＋1（which は 's' か 'e'）
+    onMarkAdjust: function (blockId, part, which, delta) {
+      var st = ST(), a = st.article, idx = blockIndex_(blockId);
+      var sec = idx >= 0 ? a.sections[idx] : null, pt = sec && sec.parts[part];
       if (!pt) return;
-      var nb = markNeighbors_(bi, pi), ns = pt.s, ne = pt.e;
-      if (which === 'e') { if (ne === null) return; ne += delta; } else ns += delta;
-      var prevEnd = nb.prev ? (nb.prev.e === null ? nb.prev.s + 1 : nb.prev.e) : 0;
-      var bad = ns < 0 || ns < prevEnd || (ne !== null && (ns >= ne || ne > st.article.durationSec)) ||
-                (ne !== null && nb.next && ne > nb.next.s) || (ne === null && nb.next && ns >= nb.next.s);
-      if (bad) { RE.UI.showMessage('mark', M.MARK_ORDER, true); return; }
-      markSnapshot_();
+      var ns = pt.s, ne = pt.e;
+      if (which === 'e') ne += delta; else ns += delta;
+      // 前後の区間（同じ節の前後の区間、無ければ前後の節）
+      var prevEnd = part > 0 ? sec.parts[part - 1].e : null, nextStart = part < sec.parts.length - 1 ? sec.parts[part + 1].s : null, i;
+      if (prevEnd === null) { prevEnd = 0; for (i = idx - 1; i >= 0; i--) { var p = a.sections[i].parts; if (p.length) { prevEnd = p[p.length - 1].e; break; } } }
+      if (nextStart === null) { nextStart = durEnd_(); for (i = idx + 1; i < a.sections.length; i++) { var q = a.sections[i].parts; if (q.length) { nextStart = q[0].s; break; } } }
+      if (ns < 0 || ns < prevEnd || ns >= ne || ne > durEnd_() || ne > nextStart) { RE.UI.showMessage('mark', M.MARK_ORDER, true); return; }
       pt.s = ns; pt.e = ne;
       RE.UI.clearMessage('mark');
-      RE.UI.renderMark();
+      afterMarkEdit_(blockId);
     },
-    onMarkPreview: function (bi, pi) {
-      var st = ST(), ps = st.markParts[bi], pt = ps && ps[pi];
-      if (!pt) return;
-      var nb = markNeighbors_(bi, pi);
-      var end = pt.e !== null ? pt.e : (nb.next ? nb.next.s : st.article.durationSec);
-      if (!(end > pt.s)) return;
-      RE.Engine.setSection(pt.s, end, 'A', true);
-      RE.Engine.playFromStart();
+    // × ：その区間を消す（2回押し）
+    onMarkPartDelete: function (blockId, part) {
+      var st = ST(), a = st.article, idx = blockIndex_(blockId), key = blockId + '|' + part;
+      var sec = idx >= 0 ? a.sections[idx] : null;
+      if (!sec || !sec.parts[part]) return;
+      if (st.markDeleteKey !== key) {
+        st.markDeleteKey = key;
+        RE.UI.renderMarks();
+        RE.UI.showMessage('mark', M.DELETE_CONFIRM);
+        clearTimeout(deleteTimer_);
+        deleteTimer_ = setTimeout(function () { st.markDeleteKey = ''; RE.UI.renderMarks(); RE.UI.clearMessage('mark'); }, 3000);
+        return;
+      }
+      clearTimeout(deleteTimer_);
+      st.markDeleteKey = '';
+      sec.parts.splice(part, 1);
+      // 後ろの区間の区間メモは、区間の番号を1つ詰める
+      memosOf_(blockId).forEach(function (m) { if (m.part > part) m.part -= 1; });
+      a.marked = a.sections.some(function (s) { return s.parts.length > 0; });
+      RE.UI.showMessage('mark', M.DELETED);
+      afterMarkEdit_(blockId);
     },
+    // 最初から記録し直す（2回押し）。区間メモと完了の記録は残す
     onMarkReset: function () {
-      var st = ST();
+      var st = ST(), a = st.article;
       if (!st.markResetPending) {
         st.markResetPending = true;
-        RE.UI.renderMark();
+        RE.UI.renderMarks();
         RE.UI.showMessage('mark', M.MARK_RESET_CONFIRM);
         clearTimeout(deleteTimer_);
-        deleteTimer_ = setTimeout(function () { st.markResetPending = false; RE.UI.renderMark(); RE.UI.clearMessage('mark'); }, 3000);
+        deleteTimer_ = setTimeout(function () { st.markResetPending = false; RE.UI.renderMarks(); RE.UI.clearMessage('mark'); }, 3000);
         return;
       }
       clearTimeout(deleteTimer_);
       st.markResetPending = false;
-      st.markParts = st.markParts.map(function () { return undefined; });
-      st.markIndex = 0; st.markState = 'idle'; st.markHistory = [];
-      markSeekTo_(0);
-      RE.UI.clearMessage('mark');
-      RE.UI.renderMark();
-    },
-    onMarkSave: function () {
-      var st = ST(), a = st.article;
-      var flat = markFlat_();
-      if (!flat.length) { RE.UI.showMessage('mark', M.NEED_MARK, true); return; }
-      // 終了が未定の区間は、後ろの区間の開始（無ければ音声の終わり）まで
-      flat.forEach(function (x, k) {
-        if (x.pt.e === null) x.pt.e = k < flat.length - 1 ? flat[k + 1].pt.s : Math.floor(a.durationSec);
-        if (!(x.pt.e > x.pt.s)) x.pt.e = x.pt.s + 1;
-      });
-      a.sections.forEach(function (sec, bi) {
-        var ps = st.markParts[bi] || [];
-        sec.parts = ps.filter(function (pt) { return pt.e > pt.s; }).map(function (pt) { return { s: pt.s, e: pt.e }; });
-      });
-      a.marked = true;
-      st.markArticleId = '';
+      a.sections.forEach(function (s) { s.parts = []; });
+      a.marked = false;
+      RE.Engine.stop();
+      st.blockId = ''; st.partIndex = -1;
       markChanged_();
-      leaveMark_();
-      openStudyLast_();
+      RE.UI.clearMessage('mark');
+      RE.UI.renderMarks();
+    },
+
+    // --- 作業場（仕様 8.5） ---
+    onWorkTab: function (name) {
+      var st = ST(), a = st.article;
+      if (!a || (name === st.workTab && (name === 'section' || isSplit_()))) return;
+      setWorkTab_(name);
+      RE.UI.clearMessage('study');
+      if (name === 'article') enterSplit_();
+      else {
+        leaveSplit_();
+        if (!a.marked) RE.UI.showMessage('study', M.NEED_MARK);
+        ensureStudyBlock_();
+      }
+      RE.UI.renderStudyTop();
+    },
+    // 本文分割で節を選ぶ（範囲は初期値に）
+    onSplitBlock: function (blockId) {
+      var st = ST();
+      if (!isSplit_() || blockIndex_(blockId) < 0 || st.splitBlockId === blockId) return;
+      st.splitBlockId = blockId;
+      splitDefaults_();
+      RE.UI.clearMessage('study');
+      applyRange_(true);
+      RE.UI.renderStudyTop();
+    },
+    // 節保存：選んだ節の区間を今の範囲の1つにする（仕様 8.5.2）
+    onSectionSave: function () {
+      var st = ST(), a = st.article, r = currentRange(), idx = blockIndex_(st.splitBlockId);
+      if (!isSplit_() || !r || idx < 0) return;
+      if (!fitsOrder_(idx, r.s, r.e)) { RE.UI.showMessage('study', M.MARK_ORDER, true); return; }
+      var name = st.view.blocks[idx].label;
+      a.sections[idx].parts = [{ s: r.s, e: r.e }];
+      a.marked = true;
+      markChanged_();
+      // 次の節：選んだ節の後ろで区間が無い最初の節。無ければ次の節
+      var next = -1, i;
+      for (i = idx + 1; i < a.sections.length; i++) if (!a.sections[i].parts.length) { next = i; break; }
+      if (next < 0 && idx + 1 < a.sections.length) next = idx + 1;
+      if (next >= 0) st.splitBlockId = a.sections[next].id;
+      st.splitStart = r.e; st.splitEnd = durEnd_();
+      applyRange_(true);
+      RE.UI.showMessage('study', fill(M.SECTION_SAVED, { name: name }));
+      RE.UI.renderStudyTop();
+    },
+    // 区間を足す：選んだ節に、今の範囲を次の区間（B・C…）として足す（仕様 8.5.2）
+    onSectionAddPart: function () {
+      var st = ST(), a = st.article, r = currentRange(), idx = blockIndex_(st.splitBlockId);
+      if (!isSplit_() || !r || idx < 0) return;
+      var parts = a.sections[idx].parts;
+      if (parts.length >= K.PART_LETTERS.length) { RE.UI.showMessage('study', M.MARK_PART_MAX, true); return; }
+      var lastE = parts.length ? parts[parts.length - 1].e : undefined;
+      if (!fitsOrder_(idx, r.s, r.e, lastE)) { RE.UI.showMessage('study', M.MARK_ORDER, true); return; }
+      parts.push({ s: r.s, e: r.e });
+      a.marked = true;
+      markChanged_();
+      var name = st.view.blocks[idx].label + (parts.length > 1 ? K.PART_LETTERS.charAt(parts.length - 1) : '');
+      st.splitStart = r.e; st.splitEnd = durEnd_();
+      applyRange_(true);
+      RE.UI.showMessage('study', fill(M.PART_ADDED, { name: name }));
+      RE.UI.renderStudyTop();
+    },
+    // 次の区切りへ・前の区切りへ（仕様 6.9）
+    onNextBreak: function () {
+      var a = ST().article;
+      if (!a || !a.marked) return;
+      toSectionWork_();
+      var list = breakList_(), b = null;
+      for (var i = 0; i < list.length; i++) if (compareBreak_(list[i]) > 0) { b = list[i]; break; }
+      if (!b) { RE.UI.showMessage('study', M.BREAK_LAST); RE.UI.renderStudyTop(); return; }
+      goBreak_(b);
+    },
+    onPrevBreak: function () {
+      var a = ST().article;
+      if (!a || !a.marked) return;
+      toSectionWork_();
+      var list = breakList_(), b = null;
+      for (var i = list.length - 1; i >= 0; i--) if (compareBreak_(list[i]) < 0) { b = list[i]; break; }
+      if (!b) { RE.UI.showMessage('study', M.BREAK_FIRST); RE.UI.renderStudyTop(); return; }
+      goBreak_(b);
     },
 
     // --- 学習 ---
-    onSectionGo: function (blockId, part) { RE.UI.clearMessage('study'); goSection_(blockId, part); },
+    onSectionGo: function (blockId, part) {
+      toSectionWork_();   // 本文分割で節の一覧から選んだときは、節分割に切り替える
+      RE.UI.clearMessage('study');
+      goSection_(blockId, part);
+    },
     onSectionPrev: function () {
       var nav = navList(), i = navIndex();
       if (i > 0) handlers.onSectionGo(nav[i - 1].blockId, nav[i - 1].part);
@@ -1146,7 +1247,7 @@
       var st = ST(), m = memosOf_(blockId).filter(function (x) { return x.id === id; })[0];
       if (!m) return;
       var sec = sectionRange_(blockId, m.part);
-      if (!sec || m.s < sec.start || m.e > sec.end) { RE.UI.showMessage('study', M.MEMO_OUT_OF_RANGE, true); return; }
+      if (!sec || m.s < sec.start || m.e > sec.end) { RE.UI.showMessage(st.screen === 'screen-mark' ? 'mark' : 'study', M.MEMO_OUT_OF_RANGE, true); return; }
       if (st.blockId !== blockId || st.partIndex !== m.part) goSection_(blockId, m.part);
       RE.UI.clearMessage('study');
       setRange_(m.s, m.e, false, false);
@@ -1162,37 +1263,37 @@
       memoChanged_();
     },
     onStartStep: function (delta) {
-      var st = ST(), sec = partRange_(), r = currentRange(); if (!sec || !r) return;
-      var n = RE.Utils.clamp(r.s + delta, sec.start, Math.max(Math.ceil(r.e) - 1, sec.start));
+      var b = bounds_(), r = currentRange(); if (!b || !r) return;
+      var n = RE.Utils.clamp(r.s + delta, b.start, Math.max(Math.ceil(r.e) - 1, b.start));
       if (n === r.s) return;
       RE.UI.clearMessage('study');
       setRange_(n, r.e, true, false);
     },
     onEndStep: function (delta) {
-      var st = ST(), sec = partRange_(), r = currentRange(); if (!sec || !r) return;
-      var n = RE.Utils.clamp(Math.floor(r.e) + delta, r.s + 1, sec.end);
+      var b = bounds_(), r = currentRange(); if (!b || !r) return;
+      var n = RE.Utils.clamp(Math.floor(r.e) + delta, r.s + 1, b.end);
       if (n === r.e) return;
       RE.UI.clearMessage('study');
       setRange_(r.s, n, false, false);
     },
     onMarkRange: function (which) {
-      var sec = partRange_(), r = currentRange(); if (!sec || !r) return;
+      var b = bounds_(), r = currentRange(); if (!b || !r) return;
       var stt = RE.Engine.getState();
       if (stt !== S.PLAYING && stt !== S.PAUSED) { RE.UI.showMessage('study', C.MSG.MARK_NEED_PLAY); return; }
       var pos = RE.Engine.getPositionSec();
       RE.UI.clearMessage('study');
       if (which === 'start') {
-        var n = RE.Utils.clamp(Math.floor(pos), sec.start, Math.max(Math.ceil(r.e) - 1, sec.start));
+        var n = RE.Utils.clamp(Math.floor(pos), b.start, Math.max(Math.ceil(r.e) - 1, b.start));
         if (n !== r.s) setRange_(n, r.e, true, false);
       } else {
-        var m = RE.Utils.clamp(Math.ceil(pos), r.s + 1, sec.end);
+        var m = RE.Utils.clamp(Math.ceil(pos), r.s + 1, b.end);
         if (m !== r.e) setRange_(r.s, m, false, false);
       }
     },
     onSelectAll: function () {
-      var sec = partRange_(); if (!sec) return;
+      var b = bounds_(); if (!b) return;
       RE.UI.clearMessage('study');
-      setRange_(sec.start, sec.end, true, false);
+      setRange_(b.start, b.end, true, false);
     },
     onPlayPause: function () {
       if (!currentRange()) { RE.UI.showMessage('study', M.NO_AUDIO_SECTION); return; }
@@ -1200,20 +1301,6 @@
       else { RE.UI.clearMessage('study'); RE.Engine.play(); }
     },
     onStop: function () { RE.Engine.stop(); },
-    onNextChunk: function () {
-      var sec = partRange_(), r = currentRange(); if (!sec || !r) return;
-      var step = RE.Utils.calcStepSec(ST().moveSec);
-      if (r.e >= sec.end || r.s + step >= sec.end) { RE.UI.showMessage('study', M.REACHED_PART_END); return; }
-      RE.UI.clearMessage('study');
-      setRange_(r.s + step, Math.min(r.e + step, sec.end), true, true);
-    },
-    onPrevChunk: function () {
-      var sec = partRange_(), r = currentRange(); if (!sec || !r) return;
-      var d = Math.min(RE.Utils.calcStepSec(ST().moveSec), r.s - sec.start);
-      if (d <= 0) { RE.UI.showMessage('study', C.MSG.REACHED_START); return; }
-      RE.UI.clearMessage('study');
-      setRange_(r.s - d, r.e - d, true, true);
-    },
     onComplete: function () {
       var st = ST(), a = st.article, s = sectionEntry(st.blockId);
       if (!s || !s.parts.length) return;
@@ -1252,22 +1339,11 @@
         if (status === 'same') showSyncMsg_(M.SYNC_KEPT);
       });
     },
-    onMoveStep: function (delta) {
-      applyMove_(RE.Utils.clamp(ST().moveSec + delta, C.MOVE_SEC_MIN, C.MOVE_SEC_MAX));
-    },
-    onMoveCommitted: function (text) {
-      var n = parseFloat(RE.Utils.toHalfWidth(text));
-      if (!isFinite(n)) { RE.UI.showMessage('study', C.MSG.MOVE_SEC_INVALID, true); RE.UI.renderStudyTop(); return; }
-      n = Math.round(n);
-      var c = RE.Utils.clamp(n, C.MOVE_SEC_MIN, C.MOVE_SEC_MAX);
-      if (c !== n) RE.UI.showMessage('study', C.MSG.MOVE_SEC_CLAMPED);
-      applyMove_(c);
-    },
     onGapSelect: function (g) {
       ST().gapSec = g;
       RE.Utils.saveGapSec(g);
       RE.Engine.setGap(g);
-      RE.UI.renderStudyTop();
+      RE.UI.renderSettings();
     },
     onRateSelect: function (rate) {
       var st = ST(), r = currentRange();
@@ -1359,19 +1435,12 @@
     }
   };
 
-  // 移動時間を変える（◯秒区切りなら今の区間の長さも変わる）
-  function applyMove_(n) {
-    var st = ST();
-    st.moveSec = n;
-    RE.Utils.saveMoveSec(n);
-    RE.UI.renderStudyTop();
-  }
-
   RE.Main = {
     start: start, handlers: handlers, buildView_: buildView_,
-    navList: navList, navIndex: navIndex, partLabel: partLabel_, markNeighbors: markNeighbors_, sectionEntry: sectionEntry, currentRange: currentRange,
+    navList: navList, navIndex: navIndex, partLabel: partLabel_, sectionEntry: sectionEntry, currentRange: currentRange,
     studyProgressText: studyProgressText, libraryProgressText: libraryProgressText, driveProblemText: driveProblemText,
-    memosOf: memosOf_, sectionSentences: sectionSentences_, isCurrentMemo: isCurrentMemo_
+    memosOf: memosOf_, sectionSentences: sectionSentences_, isCurrentMemo: isCurrentMemo_,
+    blockIndex: blockIndex_, durEnd: durEnd_
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);

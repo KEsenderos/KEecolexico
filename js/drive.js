@@ -1,5 +1,5 @@
 // drive.js — GAS中継役を呼び、Googleドライブの記事フォルダを取り込む
-// 基づく仕様書：KEecolexico 仕様書 v0.9.1
+// 基づく仕様書：KEecolexico 仕様書 v0.10.1
 (function () {
   'use strict';
   var K = function () { return RE.Config.KX; };

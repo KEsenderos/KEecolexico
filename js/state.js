@@ -1,5 +1,5 @@
 /* js/state.js — アプリの状態をまとめて持つ（RE.State） */
-/* 基づく仕様書：KEecolexico 仕様書 v0.9.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v0.10.1 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -21,7 +21,6 @@
     RE.State.rangeStart = 0;            // 繰り返す範囲の開始（音声全体の時刻）
     RE.State.rangeEnd = 0;              // 繰り返す範囲の終了
     RE.State.memoSid = '';              // 区間保存で結び付ける文の番号（仕様 6.8.4）
-    RE.State.moveSec = RE.Utils.loadMoveSec();
     RE.State.gapSec = RE.Utils.loadGapSec();
     RE.State.rate = C.RATE_DEFAULT;
     RE.State.playerState = C.PLAYER_STATE.NO_FILE;
@@ -33,17 +32,18 @@
     RE.State.drivePending = null;       // 音声だけ受け取れなかったときの途中の入力
     RE.State.driveLinkId = '';          // 結び付けるときの記事のID（空＝ふつうの取り込み。仕様 8.7.1）
     RE.State.partIndex = 0;             // 表示中の区間の番号（とばした節・見つからなかった語は -1）
-    RE.State.markIndex = 0;             // 記録画面で次に記録する節の番号
-    RE.State.markParts = [];            // 記録画面の各節の区間（undefined=未記録、[]=とばした、[{s,e}]。e は未定なら null）
-    RE.State.markState = 'idle';        // 記録の状態 'idle' / 'open' / 'paused'
-    RE.State.markHistory = [];          // 「1つ取り消す」用の控え
-    RE.State.markFromSaved = false;     // 「節の位置を直す」から開いたか
     RE.State.markResetPending = false;  // 「最初から記録し直す」の1回目を押したか
+    RE.State.markDeleteKey = '';        // 区間の × の1回目を押した区間（'節id|番号'）
     RE.State.articles = [];             // 記事一覧
     RE.State.loadedArticleId = '';      // エンジンに音声を読み込んである記事
     RE.State.pendingDeleteId = '';      // 削除の1回目を押した記事
-    RE.State.engineMode = 'study';      // エンジンの使い方：'study'（学習の範囲）／'mark'（記録画面。倍速1・間0・全体）
-    RE.State.markArticleId = '';        // 記録画面の途中の記録がある記事（タブを移っても残す。仕様 8.9）
+    RE.State.engineMode = 'study';      // エンジンの使い方：'study'（今の区間）／'split'（本文分割。音声全体。仕様 6.5.1）
+    var wt = read_(K.STORAGE_KEY_WORKTAB);
+    RE.State.workTab = wt === 'section' ? 'section' : 'article';   // 作業場の小さなタブ（仕様 8.5.1）
+    RE.State.splitBlockId = '';         // 本文分割で選んでいる節
+    RE.State.splitStart = 0;            // 本文分割の範囲（音声全体の時刻）
+    RE.State.splitEnd = 0;
+    RE.State.openMarkBlockId = '';      // 区切りタブで開いている節（1つだけ。仕様 8.4）
     RE.State.scrollPos = {};            // 画面ごとのスクロールの位置
     RE.State.sheetOpen = false;         // 節の一覧の開閉
     RE.State.syncStatus = 'off';        // 受け渡しの状態（仕様 6.7.4）
