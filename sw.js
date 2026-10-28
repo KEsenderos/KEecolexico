@@ -1,6 +1,6 @@
 // sw.js — アプリ本体をiPhoneに保存して、通信なしでも開けるようにする
-// 基づく仕様書：KEecolexico 仕様書 v0.10.1
-var CACHE_VERSION = '0.10.1';                 // APP_VERSION と同じ値にする
+// 基づく仕様書：KEecolexico 仕様書 v1.0
+var CACHE_VERSION = '1.0';                  // APP_VERSION と同じ値にする
 var CACHE_PREFIX = 'kx-cache-';
 var CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
 var APP_SHELL_FILES = ['./', './index.html', './manifest.webmanifest', './css/style.css',

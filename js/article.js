@@ -1,16 +1,16 @@
 // article.js — 記事本文を1文ずつに分け、文番号(sid)と節(ブロック)を付ける
-// 基づく仕様書：KEecolexico 仕様書 v0.10.1
+// 基づく仕様書：KEecolexico 仕様書 v1.0
 (function () {
   'use strict';
   var RE_QUESTION   = /^(\d+(?:\s*,\s*\d+)*)\.\s+(\S.*)$/;
-  var RE_RESPUESTA  = /^respuesta$/i;
+  var RE_RESPUESTA  = /^respuestas?$/i;
   var RE_TEMA       = /^tema$/i;
-  var RE_REVIEW     = /^¿?\s*QUÉ RESPONDERÍAS\s*\??$/i;
+  var RE_REVIEW     = /¿?\s*QUÉ\s+[A-ZÁÉÍÓÚÜÑ]+RÍAS\s*\??\s*$/i;
   var RE_LOWER      = /[a-záéíóúüñ]/;
   var RE_LETTERS    = /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g;
   var RE_NEXT_START = /[A-ZÁÉÍÓÚÜÑ¿¡“"«]/;
-  var RE_FOOTNOTE   = /([.?!][”"’»]?)\s+[a-z](?=\s+[A-ZÁÉÍÓÚÜÑ¿¡“"«]|\s*$)/g;
-  var RE_IMAGE_NOTE = /\s*\((?:Mira|Vea|Véase) también la imagen\)\.?/gi;
+  var RE_FOOTNOTE   = /([.?!][”"’»]?)\s+[a-dfgh](?=\s+[A-ZÁÉÍÓÚÜÑ¿¡“"«]|\s*$)/g;
+  var RE_IMAGE_NOTE = /\s*\((?:Mira|Vea|Véase) también (?:la imagen|las imágenes)\)\.?/gi;
   var ABBREVIATIONS = ['sr','sra','srta','dr','dra','etc','pág','págs','núm','ej','vol','cap'];
 
   // 1行を整える（見えない文字・ノーブレークスペース・連続空白）
@@ -102,7 +102,7 @@
       if (lead && currentParas.indexOf(lead[1]) >= 0 && !usedParas[lead[1]]) {
         para = lead[1]; body = line.slice(lead[0].length);
       } else if (expectBody) {
-        para = currentParas.filter(function (p) { return !usedParas[p]; })[0] || currentParas[0];
+        para = currentParas.filter(function (p) { return !usedParas[p]; })[0] || null;
       }
       if (para) {
         usedParas[para] = true; expectBody = false;

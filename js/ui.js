@@ -1,5 +1,5 @@
 /* js/ui.js — 画面の描画とボタン操作の受け付け（RE.UI）。中身の判断は RE.Main が行う */
-/* 基づく仕様書：KEecolexico 仕様書 v0.10.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.0 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -52,8 +52,25 @@
     on('btn-mini-play', function () { h.onPlayPause(); });
     on('btn-mini-prev-break', function () { h.onPrevBreak(); });
     on('btn-mini-next-break', function () { h.onNextBreak(); });
-    document.querySelectorAll('.mini-rate-btn').forEach(function (b) {
-      b.addEventListener('click', function () { h.onRateSelect(Number(b.getAttribute('data-rate'))); });
+    // 倍速の枠と、上に開く一覧（仕様 8.10）
+    on('btn-mini-rate', function (ev) { ev.stopPropagation(); renderRateMenu_(!RE.State.rateMenuOpen); });
+    el['menu-rate'].addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var b = ev.target.closest('.rate-opt'); if (!b) return;
+      renderRateMenu_(false);
+      h.onRateSelect(Number(b.getAttribute('data-rate')));
+    });
+    document.addEventListener('click', function () { if (RE.State.rateMenuOpen) renderRateMenu_(false); });
+    // シークバー：動かしている間は位置の文字だけ、離したら移る（仕様 6.5.2）
+    el['seek-mini'].addEventListener('input', function () {
+      RE.State.seekDragging = true;
+      var v = Number(this.value);
+      el['txt-mini-pos'].textContent = RE.Utils.formatTime(v);
+      setSeekPct_(v);
+    });
+    el['seek-mini'].addEventListener('change', function () {
+      RE.State.seekDragging = false;
+      h.onSeek(Number(this.value));
     });
     // 一覧
     on('btn-add-drive', function () { h.onAddDrive(); });
@@ -164,7 +181,7 @@
     bindPressed_();
     // 文字を入力している間は、下のタブと再生バーを隠す（キーボードと重ならないように）
     document.addEventListener('focusin', function (ev) {
-      if (ev.target.matches('input, textarea')) document.body.classList.add('kb-open');
+      if (ev.target.matches('input:not([type="range"]), textarea')) { document.body.classList.add('kb-open'); if (RE.State.rateMenuOpen) renderRateMenu_(false); }
     });
     document.addEventListener('focusout', function () { document.body.classList.remove('kb-open'); });
   }
@@ -193,6 +210,7 @@
     if (st.screen && st.screen !== id) st.scrollPos[st.screen] = window.scrollY;
     SCREENS.forEach(function (s) { el[s].hidden = s !== id; });
     if (id !== 'screen-study' && id !== 'screen-words') renderSectionSheet(false);
+    if (RE.State.rateMenuOpen) renderRateMenu_(false);
     var mini = id === 'screen-words' || id === 'screen-study';   // 固定の再生バーは学習・作業場（仕様 8.10）
     el['mini-player'].hidden = !mini;
     document.body.classList.toggle('has-mini', mini);
@@ -534,11 +552,44 @@
     el['btn-mini-play'].setAttribute('aria-label', playing ? '一時停止' : '再生');
     el['btn-mini-prev-break'].disabled = !a.marked;
     el['btn-mini-next-break'].disabled = !a.marked;
-    document.querySelectorAll('.mini-rate-btn').forEach(function (b) {
-      b.setAttribute('aria-pressed', String(Number(b.getAttribute('data-rate')) === st.rate));
-      b.disabled = !playable;
+    // シークバー（範囲の開始〜終わり）と倍速の枠
+    var seek = el['seek-mini'];
+    seek.disabled = !playable;
+    if (r) { seek.min = String(r.s); seek.max = String(r.e); }
+    else { seek.min = '0'; seek.max = '1'; seek.value = '0'; el['txt-mini-pos'].textContent = '--:--'; setSeekPct_(0); }
+    seek.step = String(K.SEEK_STEP_SEC);
+    el['txt-mini-rate'].textContent = fill(M.RATE_LABEL, { rate: st.rate.toFixed(1) });
+    el['btn-mini-rate'].disabled = !playable;
+    el['btn-mini-rate'].classList.toggle('is-changed', st.rate !== 1);
+    if (!playable && st.rateMenuOpen) renderRateMenu_(false);
+    else if (st.rateMenuOpen) renderRateMenu_(true);
+    if (!r) el['bar-range-fill'].style.width = '0%';
+  }
+
+  // シークバーの、今の位置までの線の長さ
+  function setSeekPct_(v) {
+    var s = el['seek-mini'], mn = Number(s.min), mx = Number(s.max);
+    var f = mx > mn ? Math.min(1, Math.max(0, (v - mn) / (mx - mn))) : 0;
+    s.style.setProperty('--pct', (f * 100).toFixed(1) + '%');
+  }
+
+  // 倍速の一覧の開閉と中身（仕様 8.10）
+  function renderRateMenu_(open) {
+    var st = RE.State, menu = el['menu-rate'];
+    st.rateMenuOpen = !!open;
+    menu.hidden = !open;
+    el['btn-mini-rate'].setAttribute('aria-expanded', String(!!open));
+    if (!open) return;
+    menu.textContent = '';
+    K.RATE_CHOICES.forEach(function (rt) {
+      var on = rt === st.rate;
+      var b = make_('button', 'rate-opt', (on ? '✓ ' : '\u2003') + fill(M.RATE_LABEL, { rate: rt.toFixed(1) }));
+      b.type = 'button';
+      b.setAttribute('role', 'menuitemradio');
+      b.setAttribute('aria-checked', String(on));
+      b.setAttribute('data-rate', String(rt));
+      menu.appendChild(b);
     });
-    if (!r) { el['bar-mini-fill'].style.width = '0%'; el['bar-range-fill'].style.width = '0%'; }
   }
 
   // 範囲の行・時刻の▲▼の表示（仕様 6.5・8.5）
@@ -676,8 +727,12 @@
       var r = RE.Main.currentRange();
       var f = r && r.e > r.s ? Math.min(1, Math.max(0, (sec - r.s) / (r.e - r.s))) : 0;
       var w = (f * 100).toFixed(1) + '%';
-      el['bar-mini-fill'].style.width = w;
       if (scr === 'screen-study') el['bar-range-fill'].style.width = w;
+      if (!RE.State.seekDragging && r) {
+        el['seek-mini'].value = String(sec);
+        el['txt-mini-pos'].textContent = RE.Utils.formatTime(sec);
+        setSeekPct_(sec);
+      }
     }
   }
 

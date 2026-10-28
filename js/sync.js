@@ -1,5 +1,5 @@
 // sync.js — 区切り・完了・区間メモを、ドライブの受け渡しファイルの形に変える・比べる・当てはめる
-// 基づく仕様書：KEecolexico 仕様書 v0.10.1
+// 基づく仕様書：KEecolexico 仕様書 v1.0
 (function () {
   'use strict';
   var K = function () { return RE.Config.KX; };

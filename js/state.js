@@ -1,5 +1,5 @@
 /* js/state.js — アプリの状態をまとめて持つ（RE.State） */
-/* 基づく仕様書：KEecolexico 仕様書 v0.10.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.0 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -23,6 +23,8 @@
     RE.State.memoSid = '';              // 区間保存で結び付ける文の番号（仕様 6.8.4）
     RE.State.gapSec = RE.Utils.loadGapSec();
     RE.State.rate = C.RATE_DEFAULT;
+    RE.State.seekDragging = false;      // シークバーを指で動かしている最中か（仕様 6.5.2）
+    RE.State.rateMenuOpen = false;      // 倍速の一覧が開いているか（仕様 8.10）
     RE.State.playerState = C.PLAYER_STATE.NO_FILE;
     RE.State.fontSize = K.FONT_SIZES[font] ? font : K.FONT_DEFAULT;
     RE.State.deadlineWeekday = K.DEADLINE_OPTIONS.indexOf(dl) >= 0 ? dl : K.DEADLINE_DEFAULT;

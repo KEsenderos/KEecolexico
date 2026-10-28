@@ -1,5 +1,5 @@
 /* js/main.js — 起動と各操作のまとめ役（RE.Main）。画面の描画は RE.UI、再生は RE.Engine、保存は RE.Db に任せる */
-/* 基づく仕様書：KEecolexico 仕様書 v0.10.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.0 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -1350,10 +1350,22 @@
       if (!r) { RE.UI.showMessage('study', M.NO_AUDIO_SECTION); return; }
       if (rate !== 1 && r.e - r.s > C.STRETCH_MAX_SECTION_SEC) { RE.UI.showMessage('study', C.MSG.RATE_TOO_LONG, true); return; }
       st.rate = rate;
-      RE.Engine.setRate(rate);
-      RE.Engine.setSection(r.s, r.e, 'A', true);
       RE.UI.clearMessage('study');
-      RE.Engine.playFromStart();
+      // 頭に戻らない：再生中は今の位置から新しい倍速で続ける。止まっているときは再生を始めない（仕様 6.5.2）
+      if (RE.Engine.getState() === S.PLAYING) {
+        var pos = RE.Engine.getPositionSec();
+        RE.Engine.setRate(rate);
+        RE.Engine.seekTo(pos);
+      } else {
+        RE.Engine.setRate(rate);
+      }
+      RE.UI.renderStudyTop();
+    },
+    // シークバーを離したとき：その位置へ移る（仕様 6.5.2）
+    onSeek: function (sec) {
+      var r = currentRange(); if (!r) return;
+      RE.Engine.seekTo(Math.min(Math.max(sec, r.s), r.e));
+      RE.UI.updatePosition(RE.Engine.getPositionSec());
       RE.UI.renderStudyTop();
     },
 

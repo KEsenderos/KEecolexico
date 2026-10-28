@@ -472,6 +472,18 @@
     if (loc) rebuild_(loc.slot, inSection_(loc.slot, loc.pos) ? loc.pos : sec[loc.slot].s);
   }
 
+  /** 再生位置を pos（そのファイル上の秒）へ移す（KEecolexico で足した窓口。仕様 3.3）。
+      区間の外なら区間の中へ収める。再生中はその位置から続けて再生し、一時停止中・停止中は一時停止の状態でその位置を覚える */
+  function seekTo(pos) {
+    if (!parts_().length || !ctx) return;
+    var slot = firstSlot_(), s = sec[slot].s, e = sec[slot].e;
+    pos = Math.min(Math.max(Number(pos) || 0, s), Math.max(s, e - 0.1));
+    pausedSlot = slot;
+    pausedPos = pos;
+    if (state === S.PLAYING) { rebuild_(slot, pos); return; }
+    if (state === S.STOPPED) setState_(S.PAUSED);
+  }
+
   function getState() { return state; }
 
   RE.Engine = {
@@ -486,6 +498,7 @@
     stop: stop,
     setRate: setRate,
     setGap: setGap,
+    seekTo: seekTo,
     getPositionSec: getPositionSec,
     getActiveSlot: getActiveSlot,
     getState: getState

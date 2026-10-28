@@ -14,7 +14,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="css/style.css">
 <!-- index.html — KEecolexico の全画面（表示する画面を切り替えて使う） -->
-<!-- 基づく仕様書：KEecolexico 仕様書 v0.10.1 -->
+<!-- 基づく仕様書：KEecolexico 仕様書 v1.0 -->
 </head>
 <body>
 <main class="app">
@@ -273,7 +273,6 @@
 
 <!-- ===== 固定の再生バー（学習・作業場。仕様 8.10） ===== -->
 <div id="mini-player" class="mini-player" hidden>
-  <div class="mini-bar"><div id="bar-mini-fill" class="bar-fill"></div></div>
   <div id="msg-words" class="msg msg-mini" role="status"></div>
   <div class="mini-row">
     <button id="btn-mini-sec" class="mini-sec" type="button" aria-label="節を選ぶ"><span id="txt-mini-label" class="mini-label"></span><span id="txt-mini-range" class="mini-range"></span></button>
@@ -281,12 +280,13 @@
     <button id="btn-mini-play" class="mini-play" type="button" aria-label="再生">▶</button>
     <button id="btn-mini-next-break" class="mini-move" type="button" aria-label="次の区切りへ">次の区切り<small>▶▶</small></button>
   </div>
-  <div class="mini-rates">
-    <button id="btn-mini-rate-12" class="opt-btn mini-rate-btn" type="button" data-rate="1.2">1.2</button>
-    <button id="btn-mini-rate-11" class="opt-btn mini-rate-btn" type="button" data-rate="1.1">1.1</button>
-    <button id="btn-mini-rate-10" class="opt-btn mini-rate-btn" type="button" data-rate="1.0">1.0</button>
-    <button id="btn-mini-rate-09" class="opt-btn mini-rate-btn" type="button" data-rate="0.9">0.9</button>
-    <button id="btn-mini-rate-08" class="opt-btn mini-rate-btn" type="button" data-rate="0.8">0.8</button>
+  <div class="mini-seek-row">
+    <span id="txt-mini-pos" class="mini-pos">--:--</span>
+    <input id="seek-mini" class="seek" type="range" min="0" max="1" step="0.1" value="0" aria-label="範囲の中の再生位置">
+    <div class="rate-wrap">
+      <button id="btn-mini-rate" class="mini-rate" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="倍速を選ぶ"><span id="txt-mini-rate">1.0×</span><small>▴</small></button>
+      <div id="menu-rate" class="rate-menu" role="menu" hidden></div>
+    </div>
   </div>
 </div>
 
