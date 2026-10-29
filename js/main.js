@@ -1,5 +1,5 @@
 /* js/main.js — 起動と各操作のまとめ役（RE.Main）。画面の描画は RE.UI、再生は RE.Engine、保存は RE.Db に任せる */
-/* 基づく仕様書：KEecolexico 仕様書 v1.0 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -1184,6 +1184,49 @@
       applyRange_(true);
       RE.UI.showMessage('study', fill(M.PART_ADDED, { name: name }));
       RE.UI.renderStudyTop();
+    },
+    // AIで自動分割（仕様 6.10）：すべての節の区間と区間メモを、自動の結果で置き換える
+    onAutoSplit: function () {
+      var st = ST(), a = st.article;
+      if (!a || st.autoBusy) return;
+      if (RE.AutoSplit.isMobile()) { RE.UI.showMessage('study', M.AUTO_MAC_ONLY, true); return; }
+      var has = a.marked || Object.keys(a.memos || {}).length > 0;
+      if (has && !st.autoConfirm) {
+        st.autoConfirm = true;
+        RE.UI.showMessage('study', M.AUTO_CONFIRM);
+        RE.UI.renderStudyTop();
+        clearTimeout(deleteTimer_);
+        deleteTimer_ = setTimeout(function () { st.autoConfirm = false; RE.UI.renderStudyTop(); RE.UI.clearMessage('study'); }, 3000);
+        return;
+      }
+      clearTimeout(deleteTimer_);
+      st.autoConfirm = false; st.autoBusy = true;
+      RE.Engine.stop();
+      RE.UI.renderStudyTop();
+      var status = function (t) { if (ST().article === a) RE.UI.showMessage('study', t); };
+      RE.Db.getAudio(a.articleId).then(function (rec) {
+        if (!rec || !rec.blob) throw new Error('NO_AUDIO');
+        return RE.AutoSplit.run(a, rec.blob, status);
+      }).then(function (res) {
+        a.sections.forEach(function (s) { s.parts = res.parts[s.id] || []; });
+        a.memos = res.memos;
+        a.marked = a.sections.some(function (s) { return s.parts.length > 0; });
+        var msg = fill(M.AUTO_DONE, res.stats);
+        if (ST().article !== a) { a.syncDirty = true; return RE.Db.saveArticle(a); }   // 別の記事を開いていたら保存だけ（次に開いたとき送る）
+        markChanged_();
+        st.autoBusy = false;
+        st.blockId = ''; st.partIndex = -1; st.openMarkBlockId = '';
+        setWorkTab_('section');
+        if (st.screen === 'screen-study') openWork_(); else ensureStudyBlock_();
+        RE.UI.renderWordList();
+        RE.UI.showMessage('study', msg);
+      }).catch(function (e) {
+        console.error(e);
+        status(fill(M.AUTO_FAILED, { reason: (e && e.message) || String(e) }));
+      }).then(function () {
+        st.autoBusy = false;
+        if (ST().article) RE.UI.renderStudyTop();
+      });
     },
     // 次の区切りへ・前の区切りへ（仕様 6.9）
     onNextBreak: function () {

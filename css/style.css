@@ -1,5 +1,5 @@
 /* css/style.css — KEecolexico の見た目（暗い画面・ロゴの青緑と藍。下にタブ） */
-/* 基づく仕様書：KEecolexico 仕様書 v1.0 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
 :root {
   --bg: #0A0E18;
   --surface: #121A28;
@@ -473,3 +473,7 @@ button.sid-sep.pressed { background: rgba(255, 197, 107, 0.18); }
 }
 .rate-opt[aria-checked="true"] { color: var(--accent); }
 .rate-opt.pressed { background: var(--surface-3); }
+
+/* ===== v1.1 自動分割（仕様 6.10） ===== */
+.btn-auto { min-height: 48px; border-color: var(--accent-2); color: var(--accent-2); background: var(--surface-2); font-weight: 700; }
+.btn-auto.is-confirm { background: var(--danger); border-color: var(--danger); color: #fff; }

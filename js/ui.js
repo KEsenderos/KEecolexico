@@ -1,5 +1,5 @@
 /* js/ui.js — 画面の描画とボタン操作の受け付け（RE.UI）。中身の判断は RE.Main が行う */
-/* 基づく仕様書：KEecolexico 仕様書 v1.0 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -127,6 +127,7 @@
     });
     on('btn-section-save', function () { h.onSectionSave(); });
     on('btn-section-add', function () { h.onSectionAddPart(); });
+    on('btn-auto-split', function () { h.onAutoSplit(); });
     el['panel-section-text'].addEventListener('click', function (ev) {
       var b = ev.target.closest('button');
       if (b && b.classList.contains('sent-play')) { h.onMemoTap(b.getAttribute('data-block'), b.getAttribute('data-id')); return; }
@@ -485,6 +486,11 @@
       el['btn-section-save'].disabled = !playable || !st.splitBlockId;
       el['btn-section-add'].disabled = !playable || !st.splitBlockId;
       el['txt-hint-article'].textContent = M.HINT_ARTICLE;
+      var ab = el['btn-auto-split'];
+      ab.textContent = st.autoBusy ? M.AUTO_BUTTON_BUSY : (st.autoConfirm ? M.AUTO_BUTTON_CONFIRM : M.AUTO_BUTTON);
+      ab.disabled = st.autoBusy;
+      ab.classList.toggle('is-confirm', !!st.autoConfirm);
+      el['txt-hint-auto'].textContent = M.AUTO_HINT;
       return;
     }
     // 節分割

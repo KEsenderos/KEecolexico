@@ -1,12 +1,12 @@
 /* js/config.js / KEecolexico の定数（RE.Config）。KEecoloop v2.10.1 の config.js を元に、名前・版・保存キーを変え、KX・KXMSG を追加 */
-/* 基づく仕様書：KEecolexico 仕様書 v1.0 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
 (function () {
   'use strict';
   window.RE = window.RE || {};
 
   RE.Config = Object.freeze({
     APP_NAME: 'KEecolexico',
-    APP_VERSION: '1.0',
+    APP_VERSION: '1.1',
     ENGINE_TYPE: 'WEB_AUDIO',
     MOVE_SEC_MIN: 1,
     MOVE_SEC_MAX: 60,
@@ -118,6 +118,17 @@
       STORAGE_KEY_WORKTAB: 'kx.workTab',        // 作業場の小さなタブ（'article'｜'section'）
       RATE_CHOICES: [1.6, 1.4, 1.2, 1.0, 0.8, 0.6], // 倍速の一覧（上から並べる順。v1.0）
       SEEK_STEP_SEC: 0.1,                       // シークバーの細かさ（秒。v1.0）
+      // 自動分割（v1.1。仕様 6.10）
+      AUTO_MODEL: 'onnx-community/whisper-base_timestamped',
+      AUTO_WORKER_URL: 'js/align-worker.js',
+      AUTO_SAMPLE_RATE: 16000,
+      AUTO_FRAME_SEC: 0.02,
+      AUTO_SEG_TARGET_SEC: 25,
+      AUTO_SEG_SEARCH_SEC: 5,
+      AUTO_SNAP_PAD_SEC: 0.3,
+      AUTO_MIN_RATIO: 0.3,
+      AUTO_INSERT_MIN_SEC: 3,
+      AUTO_LANGUAGE: 'spanish',
       TXT_ACCEPT: '.txt,text/plain'
     }),
 
@@ -196,6 +207,18 @@
       MEMO_REPLACED: '「{sid}」を今の範囲に置き換えました',
       MEMO_FULL: 'この節の区間メモは30件までです。いらないものを×で消してください',
       MEMO_OUT_OF_RANGE: 'この区間メモは、今の区切りの範囲の外にあります（区切りを直したため）。×で消して、保存し直してください',
+      AUTO_BUTTON: 'AIで自動分割（Mac）',
+      AUTO_BUTTON_CONFIRM: '本当に置き換える',
+      AUTO_BUTTON_BUSY: '自動分割中…',
+      AUTO_CONFIRM: 'もう一度押すと、すべての節の区切りと区間メモを、自動の結果で置き換えます（完了の記録は残ります）',
+      AUTO_MAC_ONLY: '自動分割は Mac で行ってください（できた区切りは iPhone に受け渡されます）',
+      AUTO_PREPARING: '自動分割：音声を準備中…',
+      AUTO_DOWNLOAD: '自動分割：AIのモデルを取得中 {n}%（初回だけ。Wi-Fiで）',
+      AUTO_RECOG: '自動分割：音声を認識中 {done}/{total}',
+      AUTO_ALIGN: '自動分割：本文と突き合わせ中…',
+      AUTO_DONE: '自動分割が終わりました：{blocks}節・区間メモ{memos}文（見つからなかった文 {miss}）。節分割・区切りタブで確かめ、ずれは▲▼で直してください',
+      AUTO_FAILED: '自動分割できませんでした（{reason}）。もう一度押してください',
+      AUTO_HINT: '※ AIで自動分割：音声を本文と突き合わせて、すべての節と文の区切りを一度に作ります（Macで。初回はAIのモデルを取得します）',
       RATE_LABEL: '{rate}×',                     // 倍速の枠と一覧の文字（例「1.0×」。v1.0）
       BACKUP_FILE_PREFIX: 'keecolexico-backup-',
       BACKUP_EXPORTED: '書き出しました：{name}（{n}件の記事）',
