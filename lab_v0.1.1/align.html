@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KEecolexico 自動分割の検証</title>
+<link rel="icon" type="image/svg+xml" href="../icons/favicon.svg">
+<!-- lab/align.html — 自動分割の検証ページ（KEecolexico の保存データを読むだけ） -->
+<!-- 基づく仕様書：KEecolexico 自動分割の検証ページ 仕様書 v0.1.1 -->
+<style>
+  :root { --bg: #0A0E18; --surface: #121A28; --surface-2: #162033; --line: #27344B; --text: #E9EEF5; --sub: #A9B4C3; --muted: #8A97A8;
+          --accent: #2DD4BF; --accent-ink: #042F2A; --warn: #FFC56B; --bad: #FF8F8F; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 -apple-system, "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 60px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 20px; margin: 0; } h2 { font-size: 16px; margin: 8px 0 0; }
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  label { color: var(--sub); font-size: 13px; }
+  select { min-height: 40px; min-width: 0; flex: 1; max-width: 560px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; font-size: 15px; }
+  button { font: inherit; cursor: pointer; }
+  .btn { min-height: 44px; padding: 0 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-weight: 700; }
+  .btn-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn:disabled, select:disabled { opacity: 0.45; cursor: default; }
+  .play { min-height: 30px; padding: 0 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font-size: 12px; white-space: nowrap; }
+  .play.is-on { border-color: var(--accent); color: var(--accent); }
+  .play:disabled { opacity: 0.3; cursor: default; }
+  .device { color: var(--muted); font-size: 13px; }
+  .status { color: var(--sub); }
+  .error { color: var(--bad); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+  .summary { white-space: pre-line; }
+  .tbl-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { border-bottom: 1px solid var(--line); padding: 5px 6px; text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  td.num { font-family: ui-monospace, Menlo, monospace; white-space: nowrap; }
+  .ok { color: var(--accent); } .mid { color: var(--warn); } .ng { color: var(--bad); }
+  .txt { color: var(--sub); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .miss { color: var(--bad); }
+</style>
+</head>
+<body>
+<main>
+  <h1>KEecolexico 自動分割の検証 <span id="txt-version" class="device"></span></h1>
+  <div class="row"><label for="sel-article">記事</label><select id="sel-article"></select></div>
+  <div class="row"><label for="sel-model">モデル</label><select id="sel-model"></select><span id="txt-device" class="device"></span></div>
+  <div class="row"><button id="btn-run" class="btn btn-primary" type="button">自動分割を試す</button></div>
+  <div id="txt-status" class="status"></div>
+  <div id="txt-error" class="error" role="alert"></div>
+  <div id="txt-summary" class="card summary" hidden></div>
+  <h2 id="h-blocks" hidden>節ごと</h2>
+  <div class="tbl-wrap"><table id="table-blocks" hidden></table></div>
+  <h2 id="h-units" hidden>文ごと（区間メモがある文が上）</h2>
+  <div class="tbl-wrap"><table id="table-units" hidden></table></div>
+  <h2 id="h-inserts" hidden>本文に無い発話（3秒以上）</h2>
+  <div class="tbl-wrap"><table id="list-inserts" hidden></table></div>
+  <div class="row"><button id="btn-export" class="btn" type="button" hidden>結果をファイルに書き出す</button></div>
+  <audio id="audio-player" preload="auto" hidden></audio>
+</main>
+<script src="../js/config.js"></script>
+<script src="../js/db.js"></script>
+<script src="../js/article.js"></script>
+<script src="js/align-core.js"></script>
+<script src="js/align-page.js"></script>
+</body>
+</html>
