@@ -1,5 +1,5 @@
 /* js/align-worker.js — 音声認識（Whisper）を、画面を止めずに動かす */
-/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.3 */
 import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0/dist/transformers.min.js';
 env.allowLocalModels = false;
 let asr = null;

@@ -1,5 +1,5 @@
 /* js/align-core.js — 本文と音声認識の結果を突き合わせる（RE.AlignCore）。画面・音声には触れない */
-/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.3 */
 (function () {
   'use strict';
   var RE = (typeof window !== 'undefined' ? window : globalThis).RE = (typeof window !== 'undefined' ? window : globalThis).RE || {};

@@ -1,5 +1,5 @@
 // lexicon.js — CSVを語の一覧にし、本文のどの文に出てくるかを照合する
-// 基づく仕様書：KEecolexico 仕様書 v1.1
+// 基づく仕様書：KEecolexico 仕様書 v1.3
 (function () {
   'use strict';
   var RE_CLITICS = /^(?:me|te|se|nos|os|lo|la|los|las|le|les)+$/;

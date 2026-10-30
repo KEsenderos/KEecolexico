@@ -1,5 +1,5 @@
 /* js/state.js — アプリの状態をまとめて持つ（RE.State） */
-/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.3 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -24,9 +24,9 @@
     RE.State.gapSec = RE.Utils.loadGapSec();
     RE.State.rate = C.RATE_DEFAULT;
     RE.State.seekDragging = false;      // シークバーを指で動かしている最中か（仕様 6.5.2）
-    RE.State.rateMenuOpen = false;
-    RE.State.autoBusy = false;          // 自動分割の最中か（仕様 6.10）
-    RE.State.autoConfirm = false;       // 自動分割の「置き換える」の1回目を押したか      // 倍速の一覧が開いているか（仕様 8.10）
+    RE.State.rateMenuOpen = false;      // 倍速の一覧が開いているか（仕様 8.10）
+    RE.State.autoArticleId = '';        // 自動区切りの最中の記事（空＝していない。仕様 6.10）
+    RE.State.autoConfirmId = '';        // 自動区切りの「置き換える」の1回目を押した記事
     RE.State.playerState = C.PLAYER_STATE.NO_FILE;
     RE.State.fontSize = K.FONT_SIZES[font] ? font : K.FONT_DEFAULT;
     RE.State.deadlineWeekday = K.DEADLINE_OPTIONS.indexOf(dl) >= 0 ? dl : K.DEADLINE_DEFAULT;

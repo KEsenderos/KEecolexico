@@ -1,5 +1,5 @@
 /* js/ui.js — 画面の描画とボタン操作の受け付け（RE.UI）。中身の判断は RE.Main が行う */
-/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.3 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -80,7 +80,7 @@
       var card = b.closest('.article-card'); if (!card) return;
       var id = card.getAttribute('data-id');
       if (b.classList.contains('article-open')) h.onOpenArticle(id);
-      else if (b.classList.contains('article-remark')) h.onRemark(id);
+      else if (b.classList.contains('article-auto')) h.onAutoSplit(id);
       else if (b.classList.contains('article-delete')) h.onDeleteArticle(id);
       else if (b.classList.contains('article-link')) h.onLinkDrive(id);
     });
@@ -127,7 +127,6 @@
     });
     on('btn-section-save', function () { h.onSectionSave(); });
     on('btn-section-add', function () { h.onSectionAddPart(); });
-    on('btn-auto-split', function () { h.onAutoSplit(); });
     el['panel-section-text'].addEventListener('click', function (ev) {
       var b = ev.target.closest('button');
       if (b && b.classList.contains('sent-play')) { h.onMemoTap(b.getAttribute('data-block'), b.getAttribute('data-id')); return; }
@@ -180,6 +179,13 @@
       var f = this.files && this.files[0]; this.value = ''; if (f) h.onBackupImport(f);
     });
     bindPressed_();
+    // 固定の再生バーの高さが変わったら（メッセージが出たときなど）、画面の下の余白も合わせる（仕様 8.10。v1.2）
+    if (window.ResizeObserver) {
+      new ResizeObserver(function () {
+        var hgt = el['mini-player'].offsetHeight;
+        if (hgt > 0) document.documentElement.style.setProperty('--mini-h', hgt + 'px');
+      }).observe(el['mini-player']);
+    }
     // 文字を入力している間は、下のタブと再生バーを隠す（キーボードと重ならないように）
     document.addEventListener('focusin', function (ev) {
       if (ev.target.matches('input:not([type="range"]), textarea')) { document.body.classList.add('kb-open'); if (RE.State.rateMenuOpen) renderRateMenu_(false); }
@@ -268,10 +274,19 @@
         lr.appendChild(lk); card.appendChild(lr);
       }
       var row = make_('div', 'article-actions');
-      var re = make_('button', 'btn btn-small article-remark', '節の位置を直す'); re.type = 'button';
-      var confirming = RE.State.pendingDeleteId === a.articleId;
+      // 自動区切り（Mac だけ。仕様 6.10・8.2。v1.3）
+      var st = RE.State, mine = st.autoArticleId === a.articleId, asking = st.autoConfirmId === a.articleId;
+      if (!RE.AutoSplit.isMobile()) {
+        var au = make_('button', 'btn btn-small btn-auto article-auto' + (asking ? ' is-confirm' : ''),
+                       mine ? M.AUTO_BUTTON_BUSY : (asking ? M.AUTO_BUTTON_CONFIRM : M.AUTO_BUTTON));
+        au.type = 'button';
+        au.disabled = !!st.autoArticleId;
+        row.appendChild(au);
+      }
+      var confirming = st.pendingDeleteId === a.articleId;
       var del = make_('button', 'btn btn-small article-delete' + (confirming ? ' btn-danger' : ''), confirming ? '本当に削除' : '削除'); del.type = 'button';
-      row.appendChild(re); row.appendChild(del);
+      del.disabled = mine;   // 自動区切りの最中の記事は消せない
+      row.appendChild(del);
       card.appendChild(row);
       box.appendChild(card);
     });
@@ -486,11 +501,6 @@
       el['btn-section-save'].disabled = !playable || !st.splitBlockId;
       el['btn-section-add'].disabled = !playable || !st.splitBlockId;
       el['txt-hint-article'].textContent = M.HINT_ARTICLE;
-      var ab = el['btn-auto-split'];
-      ab.textContent = st.autoBusy ? M.AUTO_BUTTON_BUSY : (st.autoConfirm ? M.AUTO_BUTTON_CONFIRM : M.AUTO_BUTTON);
-      ab.disabled = st.autoBusy;
-      ab.classList.toggle('is-confirm', !!st.autoConfirm);
-      el['txt-hint-auto'].textContent = M.AUTO_HINT;
       return;
     }
     // 節分割

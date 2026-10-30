@@ -1,5 +1,5 @@
 /* js/autosplit.js — 本文と音声から、節の区間と文ごとの区間メモを自動で作る（RE.AutoSplit） */
-/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.3 */
 (function () {
   'use strict';
   var K = RE.Config.KX;
@@ -119,7 +119,7 @@
     return { parts: parts, memos: memos, stats: { blocks: nBlocks, memos: nMemo, miss: nMiss } };
   }
 
-  // 自動分割を行う。article は保存してある記事、blob は音声。onStatus(文) で進み具合を知らせる
+  // 自動区切りを行う。article は保存してある記事、blob は音声。onStatus(文) で進み具合を知らせる
   // 戻り値 Promise<{parts:{節id:[{s,e}]}, memos:{節id:[…]}, stats}>
   function run(article, blob, onStatus) {
     var units, blocks, rms, dur;

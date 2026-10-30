@@ -1,5 +1,5 @@
 /* js/main.js — 起動と各操作のまとめ役（RE.Main）。画面の描画は RE.UI、再生は RE.Engine、保存は RE.Db に任せる */
-/* 基づく仕様書：KEecolexico 仕様書 v1.1 */
+/* 基づく仕様書：KEecolexico 仕様書 v1.3 */
 (function () {
   'use strict';
   var C = RE.Config;
@@ -383,6 +383,56 @@
 
   // ===== 起動・一覧 =====
 
+  // ===== 起動時・前面に戻ったときの一括同期（仕様 6.7.10。v1.2） =====
+  var syncAllBusy_ = false, lastSyncAll_ = 0;
+
+  // 記事一覧のメッセージ（一覧を開いているときだけ見える）
+  function libMsg_(text, isError) { RE.UI.showMessage('library', text, isError); }
+  // 「22:15」
+  function hhmm_() { var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; }; return p(d.getHours()) + ':' + p(d.getMinutes()); }
+
+  // ドライブと結び付いたすべての記事を、1つずつドライブとそろえる（送れていない変更は送り、相手の新しい変更は読み込む）
+  function syncAll_(force) {
+    var st = ST();
+    if (syncAllBusy_ || !RE.Drive.isReady()) return Promise.resolve();
+    if (!force && Date.now() - lastSyncAll_ < K.SYNC_ALL_MIN_MS) return Promise.resolve();
+    syncAllBusy_ = true; lastSyncAll_ = Date.now();
+    var bad = 0, local = [];
+    return RE.Db.listArticles().then(function (list) {
+      local = list;
+      var targets = list.filter(canSync_), done = 0, chain = Promise.resolve();
+      if (targets.length) libMsg_(fill(M.SYNCALL_RUNNING, { n: 0, m: targets.length }));
+      targets.forEach(function (a0) {
+        chain = chain.then(function () {
+          var a = st.article && st.article.articleId === a0.articleId ? st.article : a0;   // 開いている記事は、画面の記事そのものをそろえる
+          if (migrateSync_(a) && a !== st.article) RE.Db.saveArticle(a);
+          return queueSync_(function () { return pullSync_(a); }).then(function (status) {
+            done++;
+            if (status === 'applied' && a === st.article) {
+              var dev = st.syncAppliedFrom || K.SYNC_DEVICE_OTHER; st.syncAppliedFrom = null;
+              reopenAfterSync_(fill(M.SYNC_APPLIED, { device: dev }));
+            } else if (status === 'applied') st.syncAppliedFrom = null;
+            if (status !== 'same' && status !== 'applied' && status !== 'conflict') bad++;
+            libMsg_(fill(M.SYNCALL_RUNNING, { n: done, m: targets.length }));
+          });
+        });
+      });
+      return chain.then(function () {
+        if (targets.length) libMsg_(bad ? fill(M.SYNCALL_SOME, { k: bad }) : fill(M.SYNCALL_DONE, { time: hhmm_() }), bad > 0);
+        return RE.Drive.listArticles();
+      });
+    }).then(function (res) {
+      // ドライブにあって、この端末に無い記事
+      if (!res || !res.ok) return;
+      var have = local.map(function (a) { return a.driveFolderId; }).filter(Boolean);
+      var n = (res.articles || []).filter(function (it) { return have.indexOf(it.folderId) < 0 && !driveProblemText(it); }).length;
+      if (n) libMsg_((bad ? fill(M.SYNCALL_SOME, { k: bad }) : fill(M.SYNCALL_DONE, { time: hhmm_() })) + ' ' + fill(M.SYNCALL_NEW, { n: n }), bad > 0);
+    }).catch(function (e) { console.error(e); }).then(function () {
+      syncAllBusy_ = false;
+      if (st.screen === 'screen-library') return RE.Db.listArticles().then(function (list) { st.articles = list; RE.UI.renderLibrary(list); });
+    });
+  }
+
   function openLibrary() {
     RE.UI.showScreen('screen-library');
     return RE.Db.listArticles().then(function (list) {
@@ -471,10 +521,10 @@
     RE.UI.applyFontSize();
     RE.Db.requestPersist();
     registerServiceWorker_();
-    openLibrary();
+    openLibrary().then(function () { syncAll_(true); });
     setInterval(refreshPosition_, C.UI_REFRESH_MS);
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) { refreshPosition_(); RE.UI.renderPlayButtons(); checkUpdate_(); }
+      if (!document.hidden) { refreshPosition_(); RE.UI.renderPlayButtons(); checkUpdate_(); syncAll_(false); }
     });
   }
 
@@ -895,7 +945,6 @@
   var handlers = {
     // --- 一覧 ---
     onOpenArticle: function (id) { openArticle_(id, 'auto'); },
-    onRemark: function (id) { openArticle_(id, 'mark'); },
     onDeleteArticle: function (id) {
       var st = ST();
       if (st.pendingDeleteId === id) {
@@ -1185,48 +1234,48 @@
       RE.UI.showMessage('study', fill(M.PART_ADDED, { name: name }));
       RE.UI.renderStudyTop();
     },
-    // AIで自動分割（仕様 6.10）：すべての節の区間と区間メモを、自動の結果で置き換える
-    onAutoSplit: function () {
-      var st = ST(), a = st.article;
-      if (!a || st.autoBusy) return;
-      if (RE.AutoSplit.isMobile()) { RE.UI.showMessage('study', M.AUTO_MAC_ONLY, true); return; }
-      var has = a.marked || Object.keys(a.memos || {}).length > 0;
-      if (has && !st.autoConfirm) {
-        st.autoConfirm = true;
-        RE.UI.showMessage('study', M.AUTO_CONFIRM);
-        RE.UI.renderStudyTop();
+    // 自動区切り（記事一覧の各記事のボタン。仕様 6.10）：すべての節の区間と区間メモを、自動の結果で置き換える
+    onAutoSplit: function (id) {
+      var st = ST();
+      if (st.autoArticleId || st.driveBusy) return;
+      if (RE.AutoSplit.isMobile()) { RE.UI.showMessage('library', M.AUTO_MAC_ONLY, true); return; }
+      var relist = function () { RE.UI.renderLibrary(st.articles || []); };
+      RE.Db.getArticle(id).then(function (a0) {
+        if (!a0) return;
+        var a = st.article && st.article.articleId === id ? st.article : a0;   // 開いている記事なら、画面の記事そのもの
+        var has = a.marked || Object.keys(a.memos || {}).length > 0;
+        if (has && st.autoConfirmId !== id) {   // 区切りがある記事は2回押し
+          st.autoConfirmId = id; relist();
+          RE.UI.showMessage('library', fill(M.AUTO_CONFIRM, { title: a.title }));
+          clearTimeout(deleteTimer_);
+          deleteTimer_ = setTimeout(function () { st.autoConfirmId = ''; relist(); RE.UI.clearMessage('library'); }, 3000);
+          return;
+        }
         clearTimeout(deleteTimer_);
-        deleteTimer_ = setTimeout(function () { st.autoConfirm = false; RE.UI.renderStudyTop(); RE.UI.clearMessage('study'); }, 3000);
-        return;
-      }
-      clearTimeout(deleteTimer_);
-      st.autoConfirm = false; st.autoBusy = true;
-      RE.Engine.stop();
-      RE.UI.renderStudyTop();
-      var status = function (t) { if (ST().article === a) RE.UI.showMessage('study', t); };
-      RE.Db.getAudio(a.articleId).then(function (rec) {
-        if (!rec || !rec.blob) throw new Error('NO_AUDIO');
-        return RE.AutoSplit.run(a, rec.blob, status);
-      }).then(function (res) {
-        a.sections.forEach(function (s) { s.parts = res.parts[s.id] || []; });
-        a.memos = res.memos;
-        a.marked = a.sections.some(function (s) { return s.parts.length > 0; });
-        var msg = fill(M.AUTO_DONE, res.stats);
-        if (ST().article !== a) { a.syncDirty = true; return RE.Db.saveArticle(a); }   // 別の記事を開いていたら保存だけ（次に開いたとき送る）
-        markChanged_();
-        st.autoBusy = false;
-        st.blockId = ''; st.partIndex = -1; st.openMarkBlockId = '';
-        setWorkTab_('section');
-        if (st.screen === 'screen-study') openWork_(); else ensureStudyBlock_();
-        RE.UI.renderWordList();
-        RE.UI.showMessage('study', msg);
+        st.autoConfirmId = ''; st.autoArticleId = id; relist();
+        if (st.article === a) RE.Engine.stop();
+        var status = function (t) { RE.UI.showMessage('library', a.title + '：' + t); };
+        return RE.Db.getAudio(id).then(function (rec) {
+          if (!rec || !rec.blob) throw new Error('NO_AUDIO');
+          return RE.AutoSplit.run(a, rec.blob, status);
+        }).then(function (res) {
+          a.sections.forEach(function (s) { s.parts = res.parts[s.id] || []; });
+          a.memos = res.memos;
+          a.marked = a.sections.some(function (s) { return s.parts.length > 0; });
+          migrateSync_(a);
+          a.syncDirty = true;
+          return RE.Db.saveArticle(a).then(function (ok) {
+            if (!ok) throw new Error('SAVE');
+            if (canSync_(a)) queueSync_(function () { return pushSync_(a, false); });   // ドライブへ送る（iPhone に届く）
+            if (st.article === a) { st.blockId = ''; st.partIndex = -1; st.openMarkBlockId = ''; if (st.screen !== 'screen-library') reopenAfterSync_(''); }
+            st.autoArticleId = '';
+            return RE.Db.listArticles().then(function (list) { st.articles = list; relist(); });
+          }).then(function () { RE.UI.showMessage('library', a.title + '：' + fill(M.AUTO_DONE, res.stats)); });
+        });
       }).catch(function (e) {
         console.error(e);
-        status(fill(M.AUTO_FAILED, { reason: (e && e.message) || String(e) }));
-      }).then(function () {
-        st.autoBusy = false;
-        if (ST().article) RE.UI.renderStudyTop();
-      });
+        RE.UI.showMessage('library', fill(M.AUTO_FAILED, { reason: (e && e.message) || String(e) }), true);   // 区切りは変わらない
+      }).then(function () { if (st.autoArticleId === id) { st.autoArticleId = ''; relist(); } });
     },
     // 次の区切りへ・前の区切りへ（仕様 6.9）
     onNextBreak: function () {
